@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import EmptyState from '../components/ui/EmptyState'
+import ErrorState from '../components/ui/ErrorState'
 import LoadingState from '../components/ui/LoadingState'
 import Modal from '../components/ui/Modal'
 import PageHeader from '../components/ui/PageHeader'
@@ -26,7 +27,13 @@ import {
   getPendingPropertyInstallations,
   verifyPropertyInstallation,
 } from '../lib/api/propertyInstallationVerification'
-import { mockDispatches } from '../data/mockDispatch'
+import {
+  cancelDispatch,
+  getDispatches,
+  markDispatchDelivered,
+  markDispatchDispatched,
+  markDispatchReady,
+} from '../lib/api/dispatches'
 import { mockInstallationJobs } from '../data/mockInstallation'
 
 const tabConfig = [
@@ -53,7 +60,10 @@ function PlateOperationsPage() {
   const [inventory, setInventory] = useState([])
   const [inventoryLoading, setInventoryLoading] = useState(false)
   const [inventoryError, setInventoryError] = useState('')
-  const [dispatches, setDispatches] = useState(mockDispatches)
+  const [dispatches, setDispatches] = useState([])
+  const [dispatchLoading, setDispatchLoading] = useState(false)
+  const [dispatchError, setDispatchError] = useState('')
+  const [dispatchActionLoading, setDispatchActionLoading] = useState('')
   const [installationJobs, setInstallationJobs] = useState(mockInstallationJobs)
   const [verificationTasks, setVerificationTasks] = useState([])
   const [verificationLoading, setVerificationLoading] = useState(false)
@@ -110,6 +120,49 @@ function PlateOperationsPage() {
       cancelled = true
     }
   }, [activeTab, requestStatusFilter, token])
+
+  useEffect(() => {
+    if (!token || activeTab !== 'dispatch') {
+      return
+    }
+
+    let cancelled = false
+
+    async function fetchDispatches() {
+      setDispatchLoading(true)
+      setDispatchError('')
+
+      try {
+        const results = await Promise.all(
+          ['draft', 'ready', 'dispatched', 'delivered', 'cancelled'].map(
+            (status) => getDispatches(token, status),
+          ),
+        )
+
+        if (!cancelled) {
+          setDispatches(results.flat())
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDispatchError(
+            error.response?.data?.detail ||
+              'Unable to load dispatches.',
+          )
+          setDispatches([])
+        }
+      } finally {
+        if (!cancelled) {
+          setDispatchLoading(false)
+        }
+      }
+    }
+
+    fetchDispatches()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, token])
 
   useEffect(() => {
     if (!token || activeTab !== 'manufacturing') {
@@ -348,13 +401,60 @@ function PlateOperationsPage() {
     }
   }
 
-  const handleDispatchUpdate = (dispatchId, nextStatus) => {
-    setDispatches((current) =>
-      current.map((item) =>
-        item.id === dispatchId ? { ...item, status: nextStatus } : item,
-      ),
-    )
-    showToast(`Dispatch ${dispatchId} changed status`, 'success')
+  const handleDispatchUpdate = async (dispatch, nextStatus) => {
+    const actionKey = `${dispatch.dispatch_code}:${nextStatus}`
+
+    setDispatchActionLoading(actionKey)
+
+    try {
+      let updatedDispatch
+
+      if (nextStatus === 'ready') {
+        updatedDispatch = await markDispatchReady(
+          token,
+          dispatch.dispatch_code,
+        )
+      } else if (nextStatus === 'dispatched') {
+        updatedDispatch = await markDispatchDispatched(
+          token,
+          dispatch.dispatch_code,
+        )
+      } else if (nextStatus === 'delivered') {
+        updatedDispatch = await markDispatchDelivered(
+          token,
+          dispatch.dispatch_code,
+        )
+      } else if (nextStatus === 'cancelled') {
+        updatedDispatch = await cancelDispatch(
+          token,
+          dispatch.dispatch_code,
+        )
+      } else {
+        throw new Error('Unsupported dispatch action.')
+      }
+
+      setDispatches((current) =>
+        current.map((item) =>
+          item.dispatch_code === dispatch.dispatch_code
+            ? updatedDispatch
+            : item,
+        ),
+      )
+
+      showToast(
+        `Dispatch ${dispatch.dispatch_code} updated`,
+        'success',
+      )
+    } catch (error) {
+      showToast(
+        error.response?.data?.detail ||
+          error.message ||
+          `Unable to update dispatch ${dispatch.dispatch_code}.`,
+        'error',
+      )
+    } finally {
+      setDispatchActionLoading('')
+    }
   }
 
   const handleInstallationUpdate = (jobId, nextStatus) => {
@@ -768,90 +868,203 @@ function PlateOperationsPage() {
   )
 
 
-  const renderDispatch = () => (
-    <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {['Ready', 'Dispatched', 'Delivered', 'Cancelled'].map((status) => (
-          <div key={status} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{status}</p>
-            <p className="mt-3 text-2xl font-semibold text-slate-100">
-              {dispatches.filter((item) => item.status === status).length}
-            </p>
-          </div>
-        ))}
-      </div>
+  const renderDispatch = () => {
+    if (dispatchLoading) {
+      return <LoadingState message="Loading dispatches..." />
+    }
 
-      <div className="space-y-4">
-        {dispatches.map((dispatch) => (
-          <div key={dispatch.id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="flex items-center gap-3">
-                  <p className="text-lg font-semibold text-slate-50">{dispatch.plateCode}</p>
-                  <StatusBadge status={dispatch.status} />
+    if (dispatchError) {
+      return (
+        <ErrorState
+          title="Unable to load dispatches"
+          message={dispatchError}
+        />
+      )
+    }
+
+    const statuses = [
+      'draft',
+      'ready',
+      'dispatched',
+      'delivered',
+      'cancelled',
+    ]
+
+    if (dispatches.length === 0) {
+      return (
+        <EmptyState
+          title="No dispatches"
+          description="There are currently no dispatch records in the control portal."
+        />
+      )
+    }
+
+    return (
+      <div className="space-y-5">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {statuses.map((status) => (
+            <div
+              key={status}
+              className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4"
+            >
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                {status}
+              </p>
+              <p className="mt-3 text-2xl font-semibold text-slate-100">
+                {dispatches.filter((item) => item.status === status).length}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-4">
+          {dispatches.map((dispatch) => {
+            const currentActionKey = dispatchActionLoading
+              .startsWith(`${dispatch.dispatch_code}:`)
+              ? dispatchActionLoading
+              : ''
+
+            return (
+              <div
+                key={dispatch.id}
+                className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-lg font-semibold text-slate-50">
+                        {dispatch.dispatch_code}
+                      </p>
+                      <StatusBadge status={dispatch.status} />
+                    </div>
+
+                    <p className="mt-2 text-sm text-slate-400">
+                      {dispatch.destination}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {dispatch.status === 'draft' && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={Boolean(dispatchActionLoading)}
+                          onClick={() =>
+                            handleDispatchUpdate(dispatch, 'ready')
+                          }
+                          className="rounded-lg border border-sky-800 bg-sky-950/30 px-3 py-2 text-xs font-medium text-sky-200 hover:bg-sky-950 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {currentActionKey.endsWith(':ready')
+                            ? 'Marking ready...'
+                            : 'Mark ready'}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={Boolean(dispatchActionLoading)}
+                          onClick={() =>
+                            handleDispatchUpdate(dispatch, 'cancelled')
+                          }
+                          className="rounded-lg border border-red-900 bg-red-950/30 px-3 py-2 text-xs font-medium text-red-200 hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {currentActionKey.endsWith(':cancelled')
+                            ? 'Cancelling...'
+                            : 'Cancel'}
+                        </button>
+                      </>
+                    )}
+
+                    {dispatch.status === 'ready' && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={Boolean(dispatchActionLoading)}
+                          onClick={() =>
+                            handleDispatchUpdate(dispatch, 'dispatched')
+                          }
+                          className="rounded-lg border border-sky-800 bg-sky-950/30 px-3 py-2 text-xs font-medium text-sky-200 hover:bg-sky-950 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {currentActionKey.endsWith(':dispatched')
+                            ? 'Dispatching...'
+                            : 'Mark dispatched'}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={Boolean(dispatchActionLoading)}
+                          onClick={() =>
+                            handleDispatchUpdate(dispatch, 'cancelled')
+                          }
+                          className="rounded-lg border border-red-900 bg-red-950/30 px-3 py-2 text-xs font-medium text-red-200 hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {currentActionKey.endsWith(':cancelled')
+                            ? 'Cancelling...'
+                            : 'Cancel'}
+                        </button>
+                      </>
+                    )}
+
+                    {dispatch.status === 'dispatched' && (
+                      <button
+                        type="button"
+                        disabled={Boolean(dispatchActionLoading)}
+                        onClick={() =>
+                          handleDispatchUpdate(dispatch, 'delivered')
+                        }
+                        className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-xs font-medium text-emerald-200 hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {currentActionKey.endsWith(':delivered')
+                          ? 'Marking delivered...'
+                          : 'Mark delivered'}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <p className="mt-2 text-sm text-slate-400">{dispatch.propertyName} · {dispatch.destination}</p>
-              </div>
 
-              <div className="flex flex-wrap gap-2">
-                {dispatch.status === 'Ready' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleDispatchUpdate(dispatch.id, 'Dispatched')}
-                      className="rounded-lg border border-sky-800 bg-sky-950/30 px-3 py-2 text-xs font-medium text-sky-200 hover:bg-sky-950"
-                    >
-                      Mark dispatched
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDispatchUpdate(dispatch.id, 'Cancelled')}
-                      className="rounded-lg border border-red-900 bg-red-950/30 px-3 py-2 text-xs font-medium text-red-200 hover:bg-red-950"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-                {dispatch.status === 'Dispatched' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleDispatchUpdate(dispatch.id, 'Delivered')}
-                      className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-xs font-medium text-emerald-200 hover:bg-emerald-950"
-                    >
-                      Mark delivered
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDispatchUpdate(dispatch.id, 'Cancelled')}
-                      className="rounded-lg border border-red-900 bg-red-950/30 px-3 py-2 text-xs font-medium text-red-200 hover:bg-red-950"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                      Recipient
+                    </p>
+                    <p className="mt-2 text-sm text-slate-200">
+                      {dispatch.recipient_name}
+                    </p>
+                  </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Tracking</p>
-                <p className="mt-2 text-sm text-slate-200">{dispatch.trackingRef}</p>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                      Phone
+                    </p>
+                    <p className="mt-2 text-sm text-slate-200">
+                      {dispatch.recipient_phone}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                      Tracking
+                    </p>
+                    <p className="mt-2 text-sm text-slate-200">
+                      {dispatch.tracking_reference || 'Not provided'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                      Created
+                    </p>
+                    <p className="mt-2 text-sm text-slate-200">
+                      {new Date(dispatch.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Driver</p>
-                <p className="mt-2 text-sm text-slate-200">{dispatch.driver}</p>
-              </div>
-              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Date</p>
-                <p className="mt-2 text-sm text-slate-200">{dispatch.dispatchedDate}</p>
-              </div>
-            </div>
-          </div>
-        ))}
+            )
+          })}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const renderInstallation = () => (
     <div className="space-y-4">
