@@ -34,7 +34,10 @@ import {
   markDispatchDispatched,
   markDispatchReady,
 } from '../lib/api/dispatches'
-import { mockInstallationJobs } from '../data/mockInstallation'
+import {
+  cancelInstallationAssignment,
+  getInstallationAssignments,
+} from '../lib/api/installationAssignments'
 
 const tabConfig = [
   { id: 'requests', label: 'Requests' },
@@ -64,7 +67,10 @@ function PlateOperationsPage() {
   const [dispatchLoading, setDispatchLoading] = useState(false)
   const [dispatchError, setDispatchError] = useState('')
   const [dispatchActionLoading, setDispatchActionLoading] = useState('')
-  const [installationJobs, setInstallationJobs] = useState(mockInstallationJobs)
+  const [installationAssignments, setInstallationAssignments] = useState([])
+  const [installationLoading, setInstallationLoading] = useState(false)
+  const [installationError, setInstallationError] = useState('')
+  const [installationActionLoading, setInstallationActionLoading] = useState('')
   const [verificationTasks, setVerificationTasks] = useState([])
   const [verificationLoading, setVerificationLoading] = useState(false)
   const [verificationError, setVerificationError] = useState('')
@@ -457,14 +463,44 @@ function PlateOperationsPage() {
     }
   }
 
-  const handleInstallationUpdate = (jobId, nextStatus) => {
-    setInstallationJobs((current) =>
-      current.map((job) =>
-        job.id === jobId ? { ...job, status: nextStatus } : job,
-      ),
-    )
-    showToast(`Installation job ${jobId} updated`, 'success')
-  }
+  useEffect(() => {
+    if (!token || activeTab !== 'installation') {
+      return
+    }
+
+    let cancelled = false
+
+    async function fetchInstallationAssignments() {
+      setInstallationLoading(true)
+      setInstallationError('')
+
+      try {
+        const results = await getInstallationAssignments(token)
+
+        if (!cancelled) {
+          setInstallationAssignments(results)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setInstallationError(
+            error.response?.data?.detail ||
+              'Unable to load installation assignments.',
+          )
+          setInstallationAssignments([])
+        }
+      } finally {
+        if (!cancelled) {
+          setInstallationLoading(false)
+        }
+      }
+    }
+
+    fetchInstallationAssignments()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, token])
 
   const handleVerificationUpdate = async (task, nextStatus) => {
     const actionKey = `${task.property_id}:${task.id}:${nextStatus}`
@@ -1066,86 +1102,162 @@ function PlateOperationsPage() {
     )
   }
 
-  const renderInstallation = () => (
-    <div className="space-y-4">
-      {installationJobs.map((job) => (
-        <div key={job.id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <p className="text-lg font-semibold text-slate-50">{job.plateCode}</p>
-                <StatusBadge status={job.status} />
+  const renderInstallation = () => {
+    if (installationLoading) {
+      return <LoadingState message="Loading installation assignments..." />
+    }
+
+    if (installationError) {
+      return (
+        <ErrorState
+          title="Unable to load installations"
+          description={installationError}
+        />
+      )
+    }
+
+    if (installationAssignments.length === 0) {
+      return (
+        <EmptyState
+          title="No installation assignments"
+          description="There are no installation assignments available for the control portal."
+        />
+      )
+    }
+
+    const handleCancel = async (assignment) => {
+      const reason = window.prompt(
+        `Enter a cancellation reason for ${assignment.plate_code}:`,
+      )
+
+      if (!reason?.trim()) {
+        return
+      }
+
+      setInstallationActionLoading(assignment.id)
+
+      try {
+        await cancelInstallationAssignment(
+          token,
+          assignment.id,
+          reason.trim(),
+        )
+
+        const results = await getInstallationAssignments(token)
+        setInstallationAssignments(results)
+
+        showToast(
+          `Installation assignment ${assignment.plate_code} cancelled`,
+          'success',
+        )
+      } catch (error) {
+        showToast(
+          error.response?.data?.detail ||
+            error.message ||
+            `Unable to cancel installation assignment ${assignment.plate_code}.`,
+          'error',
+        )
+      } finally {
+        setInstallationActionLoading('')
+      }
+    }
+
+    return (
+      <div className="space-y-4">
+        {installationAssignments.map((assignment) => {
+          const actionLoading =
+            installationActionLoading === assignment.id
+          const canCancel = ['assigned', 'in_progress', 'submitted'].includes(
+            assignment.status,
+          )
+
+          return (
+            <div
+              key={assignment.id}
+              className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5"
+            >
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <p className="text-lg font-semibold text-slate-50">
+                      {assignment.plate_code}
+                    </p>
+                    <StatusBadge status={assignment.status} />
+                  </div>
+                  <p className="mt-2 text-sm text-slate-400">
+                    {assignment.property_name} · {assignment.contractor_name}
+                  </p>
+                </div>
+
+                {canCancel && (
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => handleCancel(assignment)}
+                    className="rounded-lg border border-red-800 bg-red-950/30 px-3 py-2 text-xs font-medium text-red-200 hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Cancelling...' : 'Cancel assignment'}
+                  </button>
+                )}
               </div>
-              <p className="mt-2 text-sm text-slate-400">{job.propertyName} · {job.contractor}</p>
-            </div>
 
-            <div className="flex flex-wrap gap-2">
-              {job.status === 'Pending' && (
-                <button
-                  type="button"
-                  onClick={() => handleInstallationUpdate(job.id, 'Assigned')}
-                  className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800"
-                >
-                  Assign
-                </button>
-              )}
-              {job.status === 'Assigned' && (
-                <button
-                  type="button"
-                  onClick={() => handleInstallationUpdate(job.id, 'In Progress')}
-                  className="rounded-lg border border-sky-800 bg-sky-950/30 px-3 py-2 text-xs font-medium text-sky-200 hover:bg-sky-950"
-                >
-                  Start installation
-                </button>
-              )}
-              {job.status === 'In Progress' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleInstallationUpdate(job.id, 'Installed')}
-                    className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-xs font-medium text-emerald-200 hover:bg-emerald-950"
-                  >
-                    Mark installed
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleInstallationUpdate(job.id, 'Requires Review')}
-                    className="rounded-lg border border-amber-800 bg-amber-950/30 px-3 py-2 text-xs font-medium text-amber-200 hover:bg-amber-950"
-                  >
-                    Needs review
-                  </button>
-                </>
-              )}
-              {job.status === 'Requires Review' && (
-                <button
-                  type="button"
-                  onClick={() => handleInstallationUpdate(job.id, 'In Progress')}
-                  className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800"
-                >
-                  Resume installation
-                </button>
-              )}
-            </div>
-          </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    Installer
+                  </p>
+                  <p className="mt-2 break-all text-sm text-slate-200">
+                    {assignment.installer_email}
+                  </p>
+                </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Installer</p>
-              <p className="mt-2 text-sm text-slate-200">{job.installer}</p>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    Assigned
+                  </p>
+                  <p className="mt-2 text-sm text-slate-200">
+                    {new Date(assignment.assigned_at).toLocaleString()}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    Due
+                  </p>
+                  <p className="mt-2 text-sm text-slate-200">
+                    {assignment.due_at
+                      ? new Date(assignment.due_at).toLocaleString()
+                      : 'Not scheduled'}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    Assigned by
+                  </p>
+                  <p className="mt-2 break-all text-sm text-slate-200">
+                    {assignment.assigned_by_email}
+                  </p>
+                </div>
+              </div>
+
+              {assignment.status === 'cancelled' &&
+                assignment.cancellation_reason && (
+                  <div className="mt-3 rounded-xl border border-red-900/70 bg-red-950/20 p-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-red-400">
+                      Cancellation reason
+                    </p>
+                    <p className="mt-2 text-sm text-red-200">
+                      {assignment.cancellation_reason}
+                    </p>
+                  </div>
+                )}
             </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Scheduled</p>
-              <p className="mt-2 text-sm text-slate-200">{job.scheduledDate}</p>
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Completion</p>
-              <p className="mt-2 text-sm text-slate-200">{job.completionStatus}</p>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+          )
+        })}
+      </div>
+    )
+  }
 
   const renderVerification = () => {
     if (verificationLoading) {
