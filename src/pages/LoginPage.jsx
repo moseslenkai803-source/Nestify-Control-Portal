@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
-import { getCurrentUser, login } from '../lib/api/auth'
 import { useAuth } from '../auth/useAuth'
+import { getCurrentUser, login } from '../lib/api/auth'
 
 function LoginPage() {
   const navigate = useNavigate()
@@ -26,17 +26,27 @@ function LoginPage() {
     setIsSubmitting(true)
 
     try {
-      const tokenResponse = await login(data)
-      const currentUser = await getCurrentUser(tokenResponse.access_token)
+      const tokenResponse = await login({
+        email: data.email.trim(),
+        password: data.password,
+      })
 
-      saveSession(tokenResponse.access_token, currentUser)
+      const token = tokenResponse.access_token
+
+      if (!token) {
+        throw new Error('Login succeeded but no access token was returned.')
+      }
+
+      const user = await getCurrentUser(token)
+
+      saveSession(token, user)
       navigate('/', { replace: true })
     } catch (error) {
-      const message =
+      setSubmitError(
         error.response?.data?.detail ||
-        'Unable to sign in. Please check your credentials and try again.'
-
-      setSubmitError(message)
+          error.message ||
+          'Unable to sign in. Please check your credentials and try again.',
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -46,16 +56,12 @@ function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-slate-100">
       <section className="w-full max-w-md">
         <div className="mb-8">
-          <p className="text-sm font-medium text-slate-400">
-            Nestify
-          </p>
-
+          <p className="text-sm font-medium text-slate-400">Nestify</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">
             Control Portal
           </h1>
-
           <p className="mt-2 text-sm leading-6 text-slate-400">
-            Sign in with your Nestify employee credentials.
+            Sign in to access the operations control portal.
           </p>
         </div>
 
@@ -89,7 +95,7 @@ function LoginPage() {
                 required: 'Email is required',
               })}
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-              placeholder="employee@nestify.co.ke"
+              placeholder="Enter your email"
             />
 
             {errors.email && (
