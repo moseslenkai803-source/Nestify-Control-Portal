@@ -20,6 +20,7 @@ import {
 import {
   addContractorMember,
   createContractor,
+  deactivateContractor,
   getContractor,
   getContractorCandidates,
   getContractorMembers,
@@ -54,6 +55,12 @@ function ManagementPage() {
   const [isAddingContractorMember, setIsAddingContractorMember] =
     useState(false)
   const [addContractorMemberError, setAddContractorMemberError] =
+    useState('')
+  const [isDeactivateContractorModalOpen, setIsDeactivateContractorModalOpen] =
+    useState(false)
+  const [isDeactivatingContractor, setIsDeactivatingContractor] =
+    useState(false)
+  const [deactivateContractorError, setDeactivateContractorError] =
     useState('')
   const [isCreateContractorModalOpen, setIsCreateContractorModalOpen] =
     useState(false)
@@ -338,6 +345,70 @@ function ManagementPage() {
       )
     } finally {
       setIsAddingContractorMember(false)
+    }
+  }
+
+  function openDeactivateContractorModal() {
+    if (
+      !selectedContractor ||
+      selectedContractor.status !== 'active' ||
+      isDeactivatingContractor
+    ) {
+      return
+    }
+
+    setDeactivateContractorError('')
+    setIsContractorDetailModalOpen(false)
+    setIsDeactivateContractorModalOpen(true)
+  }
+
+  function closeDeactivateContractorModal() {
+    if (isDeactivatingContractor) {
+      return
+    }
+
+    setIsDeactivateContractorModalOpen(false)
+    setDeactivateContractorError('')
+    setIsContractorDetailModalOpen(true)
+  }
+
+  async function handleDeactivateContractor() {
+    if (
+      !token ||
+      !selectedContractor ||
+      selectedContractor.status !== 'active' ||
+      isDeactivatingContractor
+    ) {
+      return
+    }
+
+    setIsDeactivatingContractor(true)
+    setDeactivateContractorError('')
+
+    try {
+      const contractorId = selectedContractor.id
+
+      await deactivateContractor(token, contractorId)
+
+      const [contractor, members, contractorDirectory] = await Promise.all([
+        getContractor(token, contractorId),
+        getContractorMembers(token, contractorId),
+        getContractors(token, false),
+      ])
+
+      setSelectedContractor(contractor)
+      setContractorMembers(members)
+      setContractors(contractorDirectory)
+      setIsDeactivateContractorModalOpen(false)
+      setIsContractorDetailModalOpen(true)
+      showToast('Contractor deactivated successfully.')
+    } catch (requestError) {
+      setDeactivateContractorError(
+        requestError.response?.data?.detail ||
+          'Unable to deactivate the contractor.',
+      )
+    } finally {
+      setIsDeactivatingContractor(false)
     }
   }
 
@@ -1752,11 +1823,26 @@ function ManagementPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end border-t border-slate-800 pt-5">
+              <div className="flex flex-wrap justify-end gap-3 border-t border-slate-800 pt-5">
+                {selectedContractor.status === 'active' && (
+                  <button
+                    type="button"
+                    onClick={openDeactivateContractorModal}
+                    disabled={
+                      isLoadingContractorDetails || isDeactivatingContractor
+                    }
+                    className="rounded-xl border border-rose-800 bg-rose-950/40 px-4 py-2.5 text-sm font-medium text-rose-200 transition hover:bg-rose-900/50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Deactivate Contractor
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={closeContractorDetailModal}
-                  disabled={isLoadingContractorDetails}
+                  disabled={
+                    isLoadingContractorDetails || isDeactivatingContractor
+                  }
                   className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Close
@@ -1764,6 +1850,60 @@ function ManagementPage() {
               </div>
             </div>
           )}
+      </Modal>
+
+      <Modal
+        isOpen={isDeactivateContractorModalOpen}
+        onClose={closeDeactivateContractorModal}
+        title="Deactivate Contractor"
+        size="md"
+      >
+        <div className="space-y-6">
+          <div>
+            <p className="text-sm leading-6 text-slate-300">
+              Are you sure you want to deactivate{' '}
+              <span className="font-semibold text-slate-100">
+                {selectedContractor?.name}
+              </span>
+              ?
+            </p>
+
+            <p className="mt-3 text-sm leading-6 text-slate-400">
+              The contractor will no longer be eligible for new installation
+              assignments. Existing contractor members and existing assignments
+              will remain unchanged.
+            </p>
+          </div>
+
+          {deactivateContractorError && (
+            <ErrorState
+              title="Unable to deactivate contractor"
+              message={deactivateContractorError}
+            />
+          )}
+
+          <div className="flex justify-end gap-3 border-t border-slate-800 pt-5">
+            <button
+              type="button"
+              onClick={closeDeactivateContractorModal}
+              disabled={isDeactivatingContractor}
+              className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDeactivateContractor}
+              disabled={isDeactivatingContractor}
+              className="rounded-xl border border-rose-800 bg-rose-950/60 px-4 py-2.5 text-sm font-medium text-rose-100 transition hover:bg-rose-900/70 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isDeactivatingContractor
+                ? 'Deactivating...'
+                : 'Deactivate Contractor'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       <Modal
