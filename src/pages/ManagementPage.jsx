@@ -9,9 +9,13 @@ import StatusBadge from '../components/ui/StatusBadge'
 import { useAuth } from '../auth/useAuth'
 import { useToast } from '../components/ui/useToast'
 import {
+  addEmployeeClearance,
   createEmployee,
+  getEmployee,
   getEmployeeCandidates,
+  getEmployeeClearances,
   getEmployees,
+  removeEmployeeClearance,
 } from '../lib/api/employees'
 
 function ManagementPage() {
@@ -35,6 +39,14 @@ function ManagementPage() {
     clearances: [],
   })
   const [createError, setCreateError] = useState('')
+  const [selectedEmployee, setSelectedEmployee] = useState(null)
+  const [employeeClearances, setEmployeeClearances] = useState([])
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false)
+  const [detailError, setDetailError] = useState('')
+  const [clearanceError, setClearanceError] = useState('')
+  const [clearanceForm, setClearanceForm] = useState('')
+  const [isUpdatingClearance, setIsUpdatingClearance] = useState(false)
 
   async function loadEmployees() {
     if (!token) {
@@ -151,6 +163,133 @@ function ManagementPage() {
       )
     } finally {
       setIsCreating(false)
+    }
+  }
+
+  function closeDetailModal() {
+    if (isUpdatingClearance) {
+      return
+    }
+
+    setIsDetailModalOpen(false)
+    setSelectedEmployee(null)
+    setEmployeeClearances([])
+    setDetailError('')
+    setClearanceError('')
+    setClearanceForm('')
+  }
+
+  async function openEmployeeDetails(employeeId) {
+    if (!token || isLoadingDetails) {
+      return
+    }
+
+    setSelectedEmployee(null)
+    setEmployeeClearances([])
+    setDetailError('')
+    setClearanceError('')
+    setClearanceForm('')
+    setIsDetailModalOpen(true)
+    setIsLoadingDetails(true)
+
+    try {
+      const [employee, clearances] = await Promise.all([
+        getEmployee(token, employeeId),
+        getEmployeeClearances(token, employeeId),
+      ])
+
+      setSelectedEmployee(employee)
+      setEmployeeClearances(clearances)
+    } catch (requestError) {
+      setDetailError(
+        requestError.response?.data?.detail ||
+          'Unable to load employee details.',
+      )
+    } finally {
+      setIsLoadingDetails(false)
+    }
+  }
+
+  async function reloadEmployeeClearances(employeeId) {
+    if (!token) {
+      return
+    }
+
+    const data = await getEmployeeClearances(token, employeeId)
+    setEmployeeClearances(data)
+  }
+
+  async function handleAddClearance(event) {
+    event.preventDefault()
+
+    if (
+      !token ||
+      !selectedEmployee ||
+      !clearanceForm.trim() ||
+      isUpdatingClearance
+    ) {
+      return
+    }
+
+    setIsUpdatingClearance(true)
+    setClearanceError('')
+
+    try {
+      await addEmployeeClearance(
+        token,
+        selectedEmployee.id,
+        clearanceForm,
+      )
+
+      await reloadEmployeeClearances(selectedEmployee.id)
+      setClearanceForm('')
+      showToast('Clearance added successfully.')
+    } catch (requestError) {
+      setClearanceError(
+        requestError.response?.data?.detail ||
+          'Unable to add the clearance.',
+      )
+    } finally {
+      setIsUpdatingClearance(false)
+    }
+  }
+
+  async function handleRemoveClearance(clearance) {
+    if (
+      !token ||
+      !selectedEmployee ||
+      isUpdatingClearance
+    ) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Remove the "${clearance}" clearance from ${selectedEmployee.employee_number}?`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setIsUpdatingClearance(true)
+    setClearanceError('')
+
+    try {
+      await removeEmployeeClearance(
+        token,
+        selectedEmployee.id,
+        clearance,
+      )
+
+      await reloadEmployeeClearances(selectedEmployee.id)
+      showToast('Clearance removed successfully.')
+    } catch (requestError) {
+      setClearanceError(
+        requestError.response?.data?.detail ||
+          'Unable to remove the clearance.',
+      )
+    } finally {
+      setIsUpdatingClearance(false)
     }
   }
 
@@ -362,9 +501,11 @@ function ManagementPage() {
       {!isLoading && !error && filteredEmployees.length > 0 && (
         <div className="grid gap-4 xl:grid-cols-2">
           {filteredEmployees.map((employee) => (
-            <div
+            <button
               key={employee.id}
-              className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 transition hover:border-slate-700 hover:bg-slate-900"
+              type="button"
+              onClick={() => openEmployeeDetails(employee.id)}
+              className="w-full rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-left transition hover:border-slate-700 hover:bg-slate-900"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -425,7 +566,7 @@ function ManagementPage() {
                   </span>
                 )}
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -619,6 +760,217 @@ function ManagementPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={isDetailModalOpen}
+        onClose={closeDetailModal}
+        title="Employee Details"
+        size="lg"
+      >
+        {isLoadingDetails && (
+          <LoadingState message="Loading employee details..." />
+        )}
+
+        {!isLoadingDetails && detailError && (
+          <ErrorState
+            title="Unable to load employee"
+            message={detailError}
+          />
+        )}
+
+        {!isLoadingDetails && !detailError && selectedEmployee && (
+          <div className="space-y-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  Employee
+                </p>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-50">
+                  {selectedEmployee.employee_number}
+                </h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  {selectedEmployee.position}
+                </p>
+              </div>
+
+              <StatusBadge
+                status={
+                  selectedEmployee.ended_at
+                    ? 'terminated'
+                    : 'active'
+                }
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  Department
+                </p>
+                <p className="mt-2 text-sm font-medium text-slate-100">
+                  {selectedEmployee.department}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  Position
+                </p>
+                <p className="mt-2 text-sm font-medium text-slate-100">
+                  {selectedEmployee.position}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  Joined
+                </p>
+                <p className="mt-2 text-sm font-medium text-slate-100">
+                  {new Date(
+                    selectedEmployee.joined_at,
+                  ).toLocaleDateString()}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  Ended
+                </p>
+                <p className="mt-2 text-sm font-medium text-slate-100">
+                  {selectedEmployee.ended_at
+                    ? new Date(
+                        selectedEmployee.ended_at,
+                      ).toLocaleDateString()
+                    : '—'}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                User ID
+              </p>
+              <p className="mt-2 break-all text-sm text-slate-300">
+                {selectedEmployee.user_id}
+              </p>
+            </div>
+
+            <div className="border-t border-slate-800 pt-6">
+              <div>
+                <h4 className="text-lg font-semibold text-slate-100">
+                  Clearances
+                </h4>
+                <p className="mt-1 text-sm text-slate-400">
+                  Operational access assigned to this employee.
+                </p>
+              </div>
+
+              {clearanceError && (
+                <div className="mt-4">
+                  <ErrorState
+                    title="Clearance update failed"
+                    message={clearanceError}
+                  />
+                </div>
+              )}
+
+              <div className="mt-4 space-y-3">
+                {employeeClearances.length === 0 && (
+                  <EmptyState
+                    title="No clearances"
+                    description="This employee currently has no recorded clearances."
+                  />
+                )}
+
+                {employeeClearances.map((clearance) => (
+                  <div
+                    key={clearance.id}
+                    className="flex items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-slate-100">
+                        {clearance.clearance}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {clearance.is_active
+                          ? 'Active'
+                          : 'Inactive'}
+                      </p>
+                    </div>
+
+                    {clearance.is_active &&
+                      !selectedEmployee.ended_at && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleRemoveClearance(
+                              clearance.clearance,
+                            )
+                          }
+                          disabled={isUpdatingClearance}
+                          className="rounded-lg border border-red-800/70 bg-red-950/40 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-900/50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      )}
+                  </div>
+                ))}
+              </div>
+
+              {!selectedEmployee.ended_at && (
+                <form
+                  onSubmit={handleAddClearance}
+                  className="mt-5 flex flex-col gap-3 sm:flex-row"
+                >
+                  <select
+                    value={clearanceForm}
+                    onChange={(event) =>
+                      setClearanceForm(event.target.value)
+                    }
+                    disabled={isUpdatingClearance}
+                    className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="">Select clearance</option>
+                    {[
+                      'plate_operations',
+                      'property_verification',
+                      'installation_verification',
+                      'contractor_management',
+                    ].map((clearance) => (
+                      <option key={clearance} value={clearance}>
+                        {clearance}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="submit"
+                    disabled={
+                      isUpdatingClearance || !clearanceForm
+                    }
+                    className="rounded-xl border border-sky-700 bg-sky-950/60 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isUpdatingClearance
+                      ? 'Updating...'
+                      : 'Add Clearance'}
+                  </button>
+                </form>
+              )}
+            </div>
+
+            <div className="flex justify-end border-t border-slate-800 pt-5">
+              <button
+                type="button"
+                onClick={closeDetailModal}
+                disabled={isUpdatingClearance}
+                className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </section>
   )
