@@ -17,11 +17,29 @@ import {
   getEmployees,
   removeEmployeeClearance,
 } from '../lib/api/employees'
+import {
+  getContractor,
+  getContractorMembers,
+  getContractors,
+} from '../lib/api/contractors'
 
 function ManagementPage() {
   const { token } = useAuth()
   const { showToast } = useToast()
+  const [managementView, setManagementView] = useState('employees')
   const [employees, setEmployees] = useState([])
+  const [contractors, setContractors] = useState([])
+  const [isLoadingContractors, setIsLoadingContractors] = useState(true)
+  const [contractorError, setContractorError] = useState('')
+  const [contractorSearch, setContractorSearch] = useState('')
+  const [contractorView, setContractorView] = useState('active')
+  const [selectedContractor, setSelectedContractor] = useState(null)
+  const [contractorMembers, setContractorMembers] = useState([])
+  const [isContractorDetailModalOpen, setIsContractorDetailModalOpen] =
+    useState(false)
+  const [isLoadingContractorDetails, setIsLoadingContractorDetails] =
+    useState(false)
+  const [contractorDetailError, setContractorDetailError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
@@ -66,6 +84,67 @@ function ManagementPage() {
       )
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  async function loadContractors() {
+    if (!token) {
+      return
+    }
+
+    setIsLoadingContractors(true)
+    setContractorError('')
+
+    try {
+      const data = await getContractors(token, false)
+      setContractors(data)
+    } catch (requestError) {
+      setContractorError(
+        requestError.response?.data?.detail ||
+          'Unable to load the contractor directory.',
+      )
+    } finally {
+      setIsLoadingContractors(false)
+    }
+  }
+
+  function closeContractorDetailModal() {
+    if (isLoadingContractorDetails) {
+      return
+    }
+
+    setIsContractorDetailModalOpen(false)
+    setSelectedContractor(null)
+    setContractorMembers([])
+    setContractorDetailError('')
+  }
+
+  async function openContractorDetails(contractorId) {
+    if (!token || isLoadingContractorDetails) {
+      return
+    }
+
+    setSelectedContractor(null)
+    setContractorMembers([])
+    setContractorDetailError('')
+    setIsContractorDetailModalOpen(true)
+    setIsLoadingContractorDetails(true)
+
+    try {
+      const [contractor, members] = await Promise.all([
+        getContractor(token, contractorId),
+        getContractorMembers(token, contractorId),
+      ])
+
+      setSelectedContractor(contractor)
+      setContractorMembers(members)
+    } catch (requestError) {
+      setContractorDetailError(
+        requestError.response?.data?.detail ||
+          'Unable to load contractor details.',
+      )
+    } finally {
+      setIsLoadingContractorDetails(false)
     }
   }
 
@@ -332,6 +411,45 @@ function ManagementPage() {
     }
   }, [token])
 
+  useEffect(() => {
+    if (!token || managementView !== 'contractors') {
+      return
+    }
+
+    let cancelled = false
+
+    async function fetchContractors() {
+      setIsLoadingContractors(true)
+      setContractorError('')
+
+      try {
+        const data = await getContractors(token, false)
+
+        if (!cancelled) {
+          setContractors(data)
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setContractorError(
+            requestError.response?.data?.detail ||
+              'Unable to load the contractor directory.',
+          )
+          setContractors([])
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingContractors(false)
+        }
+      }
+    }
+
+    fetchContractors()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token, managementView])
+
   const activeCount = employees.filter(
     (employee) => !employee.ended_at,
   ).length
@@ -367,24 +485,90 @@ function ManagementPage() {
     )
   }, [employees, search, view])
 
+  const activeContractorCount = contractors.filter(
+    (contractor) => contractor.status === 'active',
+  ).length
+
+  const inactiveContractorCount = contractors.filter(
+    (contractor) => contractor.status === 'inactive',
+  ).length
+
+  const filteredContractors = useMemo(() => {
+    const normalizedSearch = contractorSearch.trim().toLowerCase()
+
+    const contractorsInView = contractors.filter((contractor) => {
+      if (contractorView === 'active') {
+        return contractor.status === 'active'
+      }
+
+      return contractor.status === 'inactive'
+    })
+
+    if (!normalizedSearch) {
+      return contractorsInView
+    }
+
+    return contractorsInView.filter((contractor) =>
+      [
+        contractor.name,
+        contractor.contractor_type,
+        contractor.contact_email,
+        contractor.contact_phone,
+        contractor.status,
+      ].some((value) =>
+        String(value ?? '').toLowerCase().includes(normalizedSearch),
+      ),
+    )
+  }, [contractors, contractorSearch, contractorView])
+
   return (
     <section className="space-y-8">
       <PageHeader
         eyebrow="Operational management"
         title="Management"
-        description="Manage Nestify employees and their operational access."
+        description="Manage Nestify employees, contractors, and operational relationships."
         actions={
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-2 rounded-xl border border-sky-700 bg-sky-950/60 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70"
-          >
-            <Plus className="h-4 w-4" />
-            Add Employee
-          </button>
+          managementView === 'employees' ? (
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="inline-flex items-center gap-2 rounded-xl border border-sky-700 bg-sky-950/60 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70"
+            >
+              <Plus className="h-4 w-4" />
+              Add Employee
+            </button>
+          ) : null
         }
       />
 
+      <div className="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-2">
+        <button
+          type="button"
+          onClick={() => setManagementView('employees')}
+          className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+            managementView === 'employees'
+              ? 'bg-slate-800 text-slate-50'
+              : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-200'
+          }`}
+        >
+          Employees
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setManagementView('contractors')}
+          className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+            managementView === 'contractors'
+              ? 'bg-slate-800 text-slate-50'
+              : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-200'
+          }`}
+        >
+          Contractors
+        </button>
+      </div>
+
+      {managementView === 'employees' && (
+      <div className="space-y-8">
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
           <p className="text-sm text-slate-400">Total employees</p>
@@ -568,6 +752,188 @@ function ManagementPage() {
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      </div>
+      )}
+
+      {managementView === 'contractors' && (
+        <div className="space-y-8">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
+              <p className="text-sm text-slate-400">Total contractors</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-50">
+                {contractors.length}
+              </p>
+              <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+                Complete contractor directory
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
+              <p className="text-sm text-slate-400">Active</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-50">
+                {activeContractorCount}
+              </p>
+              <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+                Current contractor organizations
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
+              <p className="text-sm text-slate-400">Inactive</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-50">
+                {inactiveContractorCount}
+              </p>
+              <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+                Historical contractor records
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="search"
+                  value={contractorSearch}
+                  onChange={(event) =>
+                    setContractorSearch(event.target.value)
+                  }
+                  placeholder="Search contractor name, type, email, or phone"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setContractorView('active')}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition ${
+                    contractorView === 'active'
+                      ? 'border-slate-600 bg-slate-800 text-slate-50'
+                      : 'border-slate-700 bg-slate-950 text-slate-400 hover:bg-slate-900'
+                  }`}
+                >
+                  Active
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setContractorView('inactive')}
+                  className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition ${
+                    contractorView === 'inactive'
+                      ? 'border-slate-600 bg-slate-800 text-slate-50'
+                      : 'border-slate-700 bg-slate-950 text-slate-400 hover:bg-slate-900'
+                  }`}
+                >
+                  Inactive
+                </button>
+
+                <button
+                  type="button"
+                  onClick={loadContractors}
+                  className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {isLoadingContractors && (
+            <LoadingState message="Loading contractor directory..." />
+          )}
+
+          {!isLoadingContractors && contractorError && (
+            <ErrorState
+              message={contractorError}
+              action={
+                <button
+                  type="button"
+                  onClick={loadContractors}
+                  className="mt-4 rounded-lg border border-red-700 bg-red-950/50 px-3 py-2 text-sm font-medium text-red-200"
+                >
+                  Retry
+                </button>
+              }
+            />
+          )}
+
+          {!isLoadingContractors &&
+            !contractorError &&
+            filteredContractors.length === 0 && (
+              <EmptyState
+                title="No contractors found"
+                description={
+                  contractors.length === 0
+                    ? contractorView === 'active'
+                      ? 'No active contractors are currently registered.'
+                      : 'No inactive contractor records are currently available.'
+                    : 'Adjust the search to view more contractors.'
+                }
+              />
+            )}
+
+          {!isLoadingContractors &&
+            !contractorError &&
+            filteredContractors.length > 0 && (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {filteredContractors.map((contractor) => (
+                  <button
+                    key={contractor.id}
+                    type="button"
+                    onClick={() => openContractorDetails(contractor.id)}
+                    className="w-full rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-left transition hover:border-slate-700 hover:bg-slate-900"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-lg font-semibold text-slate-100">
+                          {contractor.name}
+                        </p>
+                        <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+                          {contractor.contractor_type}
+                        </p>
+                      </div>
+
+                      <StatusBadge status={contractor.status} />
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                          Email
+                        </p>
+                        <p className="mt-2 break-all text-sm font-medium text-slate-100">
+                          {contractor.contact_email || '—'}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                          Phone
+                        </p>
+                        <p className="mt-2 text-sm font-medium text-slate-100">
+                          {contractor.contact_phone || '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+                      <span>
+                        Created{' '}
+                        {new Date(
+                          contractor.created_at,
+                        ).toLocaleDateString()}
+                      </span>
+                      <span>View details</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
         </div>
       )}
 
@@ -760,6 +1126,164 @@ function ManagementPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={isContractorDetailModalOpen}
+        onClose={closeContractorDetailModal}
+        title="Contractor Details"
+        size="lg"
+      >
+        {isLoadingContractorDetails && (
+          <LoadingState message="Loading contractor details..." />
+        )}
+
+        {!isLoadingContractorDetails && contractorDetailError && (
+          <ErrorState
+            title="Unable to load contractor"
+            message={contractorDetailError}
+          />
+        )}
+
+        {!isLoadingContractorDetails &&
+          !contractorDetailError &&
+          selectedContractor && (
+            <div className="space-y-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                    Contractor
+                  </p>
+                  <h3 className="mt-2 text-2xl font-semibold text-slate-50">
+                    {selectedContractor.name}
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-400">
+                    {selectedContractor.contractor_type}
+                  </p>
+                </div>
+
+                <StatusBadge status={selectedContractor.status} />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    Contractor type
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-slate-100">
+                    {selectedContractor.contractor_type}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    Status
+                  </p>
+                  <p className="mt-2 text-sm font-medium capitalize text-slate-100">
+                    {selectedContractor.status}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    Contact email
+                  </p>
+                  <p className="mt-2 break-all text-sm font-medium text-slate-100">
+                    {selectedContractor.contact_email || '—'}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    Contact phone
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-slate-100">
+                    {selectedContractor.contact_phone || '—'}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    Created
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-slate-100">
+                    {new Date(
+                      selectedContractor.created_at,
+                    ).toLocaleDateString()}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    Updated
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-slate-100">
+                    {new Date(
+                      selectedContractor.updated_at,
+                    ).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-800 pt-6">
+                <div>
+                  <h4 className="text-lg font-semibold text-slate-100">
+                    Members
+                  </h4>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Users associated with this contractor.
+                  </p>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {contractorMembers.length === 0 && (
+                    <EmptyState
+                      title="No members"
+                      description="This contractor currently has no recorded members."
+                    />
+                  )}
+
+                  {contractorMembers.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-slate-100">
+                          {member.user_id}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Added{' '}
+                          {new Date(
+                            member.created_at,
+                          ).toLocaleDateString()}
+                        </p>
+                      </div>
+
+                      <StatusBadge
+                        status={
+                          member.is_active
+                            ? 'active'
+                            : 'inactive'
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end border-t border-slate-800 pt-5">
+                <button
+                  type="button"
+                  onClick={closeContractorDetailModal}
+                  disabled={isLoadingContractorDetails}
+                  className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
       </Modal>
 
       <Modal
