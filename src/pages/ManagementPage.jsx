@@ -18,6 +18,7 @@ import {
   removeEmployeeClearance,
 } from '../lib/api/employees'
 import {
+  createContractor,
   getContractor,
   getContractorMembers,
   getContractors,
@@ -40,6 +41,16 @@ function ManagementPage() {
   const [isLoadingContractorDetails, setIsLoadingContractorDetails] =
     useState(false)
   const [contractorDetailError, setContractorDetailError] = useState('')
+  const [isCreateContractorModalOpen, setIsCreateContractorModalOpen] =
+    useState(false)
+  const [isCreatingContractor, setIsCreatingContractor] = useState(false)
+  const [createContractorForm, setCreateContractorForm] = useState({
+    name: '',
+    contractorType: 'company',
+    contactEmail: '',
+    contactPhone: '',
+  })
+  const [createContractorError, setCreateContractorError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
@@ -105,6 +116,73 @@ function ManagementPage() {
       )
     } finally {
       setIsLoadingContractors(false)
+    }
+  }
+
+  function resetCreateContractorForm() {
+    setCreateContractorForm({
+      name: '',
+      contractorType: 'company',
+      contactEmail: '',
+      contactPhone: '',
+    })
+    setCreateContractorError('')
+  }
+
+  function closeCreateContractorModal() {
+    if (isCreatingContractor) {
+      return
+    }
+
+    setIsCreateContractorModalOpen(false)
+    resetCreateContractorForm()
+  }
+
+  function handleCreateContractorFieldChange(field, value) {
+    setCreateContractorForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  async function handleCreateContractor(event) {
+    event.preventDefault()
+
+    if (!token || isCreatingContractor) {
+      return
+    }
+
+    const name = createContractorForm.name.trim()
+
+    if (!name) {
+      setCreateContractorError('Contractor name is required.')
+      return
+    }
+
+    setIsCreatingContractor(true)
+    setCreateContractorError('')
+
+    try {
+      await createContractor(token, {
+        name,
+        contractor_type: createContractorForm.contractorType.trim(),
+        contact_email:
+          createContractorForm.contactEmail.trim() || null,
+        contact_phone:
+          createContractorForm.contactPhone.trim() || null,
+      })
+
+      await loadContractors()
+      setIsCreateContractorModalOpen(false)
+      resetCreateContractorForm()
+      showToast('Contractor created successfully.')
+    } catch (requestError) {
+      setCreateContractorError(
+        requestError.response?.data?.detail ||
+          'Unable to create the contractor.',
+      )
+    } finally {
+      setIsCreatingContractor(false)
     }
   }
 
@@ -807,7 +885,19 @@ function ManagementPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetCreateContractorForm()
+                    setIsCreateContractorModalOpen(true)
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl border border-sky-700 bg-sky-950/60 px-3 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Contractor
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setContractorView('active')}
@@ -1123,6 +1213,147 @@ function ManagementPage() {
               className="rounded-xl border border-sky-700 bg-sky-950/60 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCreating ? 'Creating...' : 'Create Employee'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={isCreateContractorModalOpen}
+        onClose={closeCreateContractorModal}
+        title="Add Contractor"
+        size="md"
+      >
+        <form onSubmit={handleCreateContractor} className="space-y-6">
+          <div>
+            <p className="text-sm text-slate-300">
+              Register a contractor organization. Contractor members can be
+              associated after the organization is created.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="contractor-name"
+              className="text-sm font-medium text-slate-200"
+            >
+              Contractor name
+            </label>
+            <input
+              id="contractor-name"
+              type="text"
+              value={createContractorForm.name}
+              onChange={(event) =>
+                handleCreateContractorFieldChange(
+                  'name',
+                  event.target.value,
+                )
+              }
+              disabled={isCreatingContractor}
+              className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+              placeholder="Example Contractors Ltd"
+              required
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="contractor-type"
+              className="text-sm font-medium text-slate-200"
+            >
+              Contractor type
+            </label>
+            <input
+              id="contractor-type"
+              type="text"
+              value={createContractorForm.contractorType}
+              onChange={(event) =>
+                handleCreateContractorFieldChange(
+                  'contractorType',
+                  event.target.value,
+                )
+              }
+              disabled={isCreatingContractor}
+              className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+              placeholder="company"
+              required
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label
+                htmlFor="contractor-email"
+                className="text-sm font-medium text-slate-200"
+              >
+                Contact email
+              </label>
+              <input
+                id="contractor-email"
+                type="email"
+                value={createContractorForm.contactEmail}
+                onChange={(event) =>
+                  handleCreateContractorFieldChange(
+                    'contactEmail',
+                    event.target.value,
+                  )
+                }
+                disabled={isCreatingContractor}
+                className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                placeholder="contact@example.com"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="contractor-phone"
+                className="text-sm font-medium text-slate-200"
+              >
+                Contact phone
+              </label>
+              <input
+                id="contractor-phone"
+                type="tel"
+                value={createContractorForm.contactPhone}
+                onChange={(event) =>
+                  handleCreateContractorFieldChange(
+                    'contactPhone',
+                    event.target.value,
+                  )
+                }
+                disabled={isCreatingContractor}
+                className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                placeholder="+254..."
+              />
+            </div>
+          </div>
+
+          {createContractorError && (
+            <ErrorState
+              title="Unable to create contractor"
+              message={createContractorError}
+            />
+          )}
+
+          <div className="flex justify-end gap-2 border-t border-slate-800 pt-5">
+            <button
+              type="button"
+              onClick={closeCreateContractorModal}
+              disabled={isCreatingContractor}
+              className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={
+                isCreatingContractor ||
+                !createContractorForm.name.trim()
+              }
+              className="rounded-xl border border-sky-700 bg-sky-950/60 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isCreatingContractor ? 'Creating...' : 'Create Contractor'}
             </button>
           </div>
         </form>

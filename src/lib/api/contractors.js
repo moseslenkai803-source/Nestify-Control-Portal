@@ -33,3 +33,73 @@ export async function getContractorMembers(token, contractorId) {
 
   return response.data
 }
+
+export async function getContractorCandidates(token) {
+  const response = await apiClient.get('/contractors/candidates', {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  return response.data
+}
+
+export async function createContractor(token, payload) {
+  const response = await apiClient.post('/contractors', payload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  return response.data
+}
+
+export async function deactivateContractor(token, contractorId) {
+  const response = await apiClient.post(
+    `/contractors/${contractorId}/deactivate`,
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  )
+
+  return response.data
+}
+
+export async function addContractorMember(
+  token,
+  contractorId,
+  userId,
+) {
+  const response = await apiClient.post(
+    `/contractors/${contractorId}/members`,
+    { user_id: userId },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  )
+
+  return response.data
+}
+
+export async function deactivateContractorMember(
+  token,
+  contractorId,
+  userId,
+) {
+  const response = await apiClient.post(
+    `/contractors/${contractorId}/members/${userId}/deactivate`,
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  )
+
+  return response.data
+}
