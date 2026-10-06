@@ -3,6 +3,7 @@ import ProtectedRoute from '../auth/ProtectedRoute'
 import ControlPortalLayout from '../components/layout/ControlPortalLayout'
 import DashboardPage from '../pages/DashboardPage'
 import LoginPage from '../pages/LoginPage'
+import ManagementPage from '../pages/ManagementPage'
 import PropertiesPage from '../pages/PropertiesPage'
 import PlateOperationsPage from '../pages/PlateOperationsPage'
 import SettingsPage from '../pages/SettingsPage'
@@ -36,6 +37,14 @@ export const router = createBrowserRouter([
         element: (
           <ControlPortalLayout>
             <PlateOperationsPage />
+          </ControlPortalLayout>
+        ),
+      },
+      {
+        path: '/management',
+        element: (
+          <ControlPortalLayout>
+            <ManagementPage />
           </ControlPortalLayout>
         ),
       },

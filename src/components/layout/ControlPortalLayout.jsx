@@ -5,6 +5,7 @@ import {
   LogOut,
   Settings,
   ShieldCheck,
+  Users,
   Warehouse,
   Wrench,
 } from 'lucide-react'
@@ -14,6 +15,7 @@ const navItems = [
   { to: '/', label: 'Dashboard', icon: Gauge },
   { to: '/properties', label: 'Properties', icon: Building2 },
   { to: '/plate-operations', label: 'Plate Operations', icon: Warehouse },
+  { to: '/management', label: 'Management', icon: Users },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
 
