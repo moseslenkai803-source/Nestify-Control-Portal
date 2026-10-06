@@ -1,20 +1,40 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, Users } from 'lucide-react'
+import { Plus, Search, Users } from 'lucide-react'
 import EmptyState from '../components/ui/EmptyState'
 import ErrorState from '../components/ui/ErrorState'
 import LoadingState from '../components/ui/LoadingState'
+import Modal from '../components/ui/Modal'
 import PageHeader from '../components/ui/PageHeader'
 import StatusBadge from '../components/ui/StatusBadge'
 import { useAuth } from '../auth/useAuth'
-import { getEmployees } from '../lib/api/employees'
+import { useToast } from '../components/ui/useToast'
+import {
+  createEmployee,
+  getEmployeeCandidates,
+  getEmployees,
+} from '../lib/api/employees'
 
 function ManagementPage() {
   const { token } = useAuth()
+  const { showToast } = useToast()
   const [employees, setEmployees] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [view, setView] = useState('active')
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [candidates, setCandidates] = useState([])
+  const [isLoadingCandidates, setIsLoadingCandidates] = useState(false)
+  const [candidateError, setCandidateError] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    userId: '',
+    employeeNumber: '',
+    department: '',
+    position: '',
+    clearances: [],
+  })
+  const [createError, setCreateError] = useState('')
 
   async function loadEmployees() {
     if (!token) {
@@ -34,6 +54,103 @@ function ManagementPage() {
       )
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  function resetCreateForm() {
+    setCreateForm({
+      userId: '',
+      employeeNumber: '',
+      department: '',
+      position: '',
+      clearances: [],
+    })
+    setCreateError('')
+    setCandidateError('')
+  }
+
+  function closeCreateModal() {
+    if (isCreating) {
+      return
+    }
+
+    setIsCreateModalOpen(false)
+    resetCreateForm()
+  }
+
+  async function openCreateModal() {
+    if (!token) {
+      return
+    }
+
+    resetCreateForm()
+    setIsCreateModalOpen(true)
+    setIsLoadingCandidates(true)
+
+    try {
+      const data = await getEmployeeCandidates(token)
+      setCandidates(data)
+    } catch (requestError) {
+      setCandidates([])
+      setCandidateError(
+        requestError.response?.data?.detail ||
+          'Unable to load eligible employee users.',
+      )
+    } finally {
+      setIsLoadingCandidates(false)
+    }
+  }
+
+  function handleCreateFieldChange(field, value) {
+    setCreateForm((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  function toggleClearance(clearance) {
+    setCreateForm((current) => {
+      const alreadySelected = current.clearances.includes(clearance)
+
+      return {
+        ...current,
+        clearances: alreadySelected
+          ? current.clearances.filter((item) => item !== clearance)
+          : [...current.clearances, clearance],
+      }
+    })
+  }
+
+  async function handleCreateEmployee(event) {
+    event.preventDefault()
+
+    if (!token || isCreating) {
+      return
+    }
+
+    setIsCreating(true)
+    setCreateError('')
+
+    try {
+      await createEmployee(token, {
+        user_id: createForm.userId,
+        employee_number: createForm.employeeNumber,
+        department: createForm.department,
+        position: createForm.position,
+        clearances: createForm.clearances,
+      })
+
+      setIsCreateModalOpen(false)
+      resetCreateForm()
+      await loadEmployees()
+      showToast('Employee created successfully.')
+    } catch (requestError) {
+      setCreateError(
+        requestError.response?.data?.detail ||
+          'Unable to create the employee.',
+      )
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -117,6 +234,16 @@ function ManagementPage() {
         eyebrow="Operational management"
         title="Management"
         description="Manage Nestify employees and their operational access."
+        actions={
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-2 rounded-xl border border-sky-700 bg-sky-950/60 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70"
+          >
+            <Plus className="h-4 w-4" />
+            Add Employee
+          </button>
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -302,6 +429,197 @@ function ManagementPage() {
           ))}
         </div>
       )}
+
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={closeCreateModal}
+        title="Add Employee"
+        size="lg"
+      >
+        <form onSubmit={handleCreateEmployee} className="space-y-6">
+          <div>
+            <p className="text-sm text-slate-300">
+              Create an employee record for an eligible employee user.
+            </p>
+          </div>
+
+          {candidateError && (
+            <ErrorState
+              title="Unable to load candidates"
+              message={candidateError}
+            />
+          )}
+
+          <div>
+            <label
+              htmlFor="employee-user"
+              className="text-sm font-medium text-slate-200"
+            >
+              Employee user
+            </label>
+
+            <select
+              id="employee-user"
+              value={createForm.userId}
+              onChange={(event) =>
+                handleCreateFieldChange('userId', event.target.value)
+              }
+              disabled={isLoadingCandidates || isCreating}
+              className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+              required
+            >
+              <option value="">
+                {isLoadingCandidates
+                  ? 'Loading eligible users...'
+                  : 'Select an employee user'}
+              </option>
+
+              {candidates.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.email}
+                </option>
+              ))}
+            </select>
+
+            {!isLoadingCandidates &&
+              !candidateError &&
+              candidates.length === 0 && (
+                <p className="mt-2 text-xs text-slate-500">
+                  No eligible employee users are currently available.
+                </p>
+              )}
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label
+                htmlFor="employee-number"
+                className="text-sm font-medium text-slate-200"
+              >
+                Employee number
+              </label>
+              <input
+                id="employee-number"
+                type="text"
+                value={createForm.employeeNumber}
+                onChange={(event) =>
+                  handleCreateFieldChange(
+                    'employeeNumber',
+                    event.target.value,
+                  )
+                }
+                disabled={isCreating}
+                className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                placeholder="EMP-001"
+                required
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="employee-department"
+                className="text-sm font-medium text-slate-200"
+              >
+                Department
+              </label>
+              <input
+                id="employee-department"
+                type="text"
+                value={createForm.department}
+                onChange={(event) =>
+                  handleCreateFieldChange('department', event.target.value)
+                }
+                disabled={isCreating}
+                className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                placeholder="Operations"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="employee-position"
+              className="text-sm font-medium text-slate-200"
+            >
+              Position
+            </label>
+            <input
+              id="employee-position"
+              type="text"
+              value={createForm.position}
+              onChange={(event) =>
+                handleCreateFieldChange('position', event.target.value)
+              }
+              disabled={isCreating}
+              className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+              placeholder="Field Officer"
+              required
+            />
+          </div>
+
+          <fieldset>
+            <legend className="text-sm font-medium text-slate-200">
+              Initial clearances
+            </legend>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {[
+                'plate_operations',
+                'property_verification',
+                'installation_verification',
+                'contractor_management',
+              ].map((clearance) => (
+                <label
+                  key={clearance}
+                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3"
+                >
+                  <input
+                    type="checkbox"
+                    checked={createForm.clearances.includes(clearance)}
+                    onChange={() => toggleClearance(clearance)}
+                    disabled={isCreating}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-950"
+                  />
+                  <span className="text-sm text-slate-300">
+                    {clearance}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {createError && (
+            <ErrorState
+              title="Unable to create employee"
+              message={createError}
+            />
+          )}
+
+          <div className="flex justify-end gap-2 border-t border-slate-800 pt-5">
+            <button
+              type="button"
+              onClick={closeCreateModal}
+              disabled={isCreating}
+              className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={
+                isCreating ||
+                isLoadingCandidates ||
+                candidates.length === 0
+              }
+              className="rounded-xl border border-sky-700 bg-sky-950/60 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isCreating ? 'Creating...' : 'Create Employee'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </section>
   )
 }
