@@ -22,6 +22,7 @@ import {
   createContractor,
   deactivateContractor,
   getContractor,
+  reactivateContractor,
   getContractorCandidates,
   getContractorMembers,
   getContractors,
@@ -61,6 +62,12 @@ function ManagementPage() {
   const [isDeactivatingContractor, setIsDeactivatingContractor] =
     useState(false)
   const [deactivateContractorError, setDeactivateContractorError] =
+    useState('')
+  const [isReactivateContractorModalOpen, setIsReactivateContractorModalOpen] =
+    useState(false)
+  const [isReactivatingContractor, setIsReactivatingContractor] =
+    useState(false)
+  const [reactivateContractorError, setReactivateContractorError] =
     useState('')
   const [isCreateContractorModalOpen, setIsCreateContractorModalOpen] =
     useState(false)
@@ -409,6 +416,70 @@ function ManagementPage() {
       )
     } finally {
       setIsDeactivatingContractor(false)
+    }
+  }
+
+  function openReactivateContractorModal() {
+    if (
+      !selectedContractor ||
+      selectedContractor.status !== 'inactive' ||
+      isReactivatingContractor
+    ) {
+      return
+    }
+
+    setReactivateContractorError('')
+    setIsContractorDetailModalOpen(false)
+    setIsReactivateContractorModalOpen(true)
+  }
+
+  function closeReactivateContractorModal() {
+    if (isReactivatingContractor) {
+      return
+    }
+
+    setIsReactivateContractorModalOpen(false)
+    setReactivateContractorError('')
+    setIsContractorDetailModalOpen(true)
+  }
+
+  async function handleReactivateContractor() {
+    if (
+      !token ||
+      !selectedContractor ||
+      selectedContractor.status !== 'inactive' ||
+      isReactivatingContractor
+    ) {
+      return
+    }
+
+    setIsReactivatingContractor(true)
+    setReactivateContractorError('')
+
+    try {
+      const contractorId = selectedContractor.id
+
+      await reactivateContractor(token, contractorId)
+
+      const [contractor, members, contractorDirectory] = await Promise.all([
+        getContractor(token, contractorId),
+        getContractorMembers(token, contractorId),
+        getContractors(token, false),
+      ])
+
+      setSelectedContractor(contractor)
+      setContractorMembers(members)
+      setContractors(contractorDirectory)
+      setIsReactivateContractorModalOpen(false)
+      setIsContractorDetailModalOpen(true)
+      showToast('Contractor reactivated successfully.')
+    } catch (requestError) {
+      setReactivateContractorError(
+        requestError.response?.data?.detail ||
+          'Unable to reactivate the contractor.',
+      )
+    } finally {
+      setIsReactivatingContractor(false)
     }
   }
 
@@ -1829,11 +1900,28 @@ function ManagementPage() {
                     type="button"
                     onClick={openDeactivateContractorModal}
                     disabled={
-                      isLoadingContractorDetails || isDeactivatingContractor
+                      isLoadingContractorDetails ||
+                      isDeactivatingContractor ||
+                      isReactivatingContractor
                     }
                     className="rounded-xl border border-rose-800 bg-rose-950/40 px-4 py-2.5 text-sm font-medium text-rose-200 transition hover:bg-rose-900/50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Deactivate Contractor
+                  </button>
+                )}
+
+                {selectedContractor.status === 'inactive' && (
+                  <button
+                    type="button"
+                    onClick={openReactivateContractorModal}
+                    disabled={
+                      isLoadingContractorDetails ||
+                      isDeactivatingContractor ||
+                      isReactivatingContractor
+                    }
+                    className="rounded-xl border border-emerald-800 bg-emerald-950/40 px-4 py-2.5 text-sm font-medium text-emerald-200 transition hover:bg-emerald-900/50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Reactivate Contractor
                   </button>
                 )}
 
@@ -1901,6 +1989,60 @@ function ManagementPage() {
               {isDeactivatingContractor
                 ? 'Deactivating...'
                 : 'Deactivate Contractor'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isReactivateContractorModalOpen}
+        onClose={closeReactivateContractorModal}
+        title="Reactivate Contractor"
+        size="md"
+      >
+        <div className="space-y-6">
+          <div>
+            <p className="text-sm leading-6 text-slate-300">
+              Are you sure you want to reactivate{' '}
+              <span className="font-semibold text-slate-100">
+                {selectedContractor?.name}
+              </span>
+              ?
+            </p>
+
+            <p className="mt-3 text-sm leading-6 text-slate-400">
+              The contractor will become eligible for new installation
+              assignments again. Existing contractor members and existing
+              assignments will remain unchanged.
+            </p>
+          </div>
+
+          {reactivateContractorError && (
+            <ErrorState
+              title="Unable to reactivate contractor"
+              message={reactivateContractorError}
+            />
+          )}
+
+          <div className="flex justify-end gap-3 border-t border-slate-800 pt-5">
+            <button
+              type="button"
+              onClick={closeReactivateContractorModal}
+              disabled={isReactivatingContractor}
+              className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleReactivateContractor}
+              disabled={isReactivatingContractor}
+              className="rounded-xl border border-emerald-800 bg-emerald-950/60 px-4 py-2.5 text-sm font-medium text-emerald-100 transition hover:bg-emerald-900/70 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isReactivatingContractor
+                ? 'Reactivating...'
+                : 'Reactivate Contractor'}
             </button>
           </div>
         </div>

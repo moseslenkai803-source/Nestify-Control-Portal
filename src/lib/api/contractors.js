@@ -68,6 +68,20 @@ export async function deactivateContractor(token, contractorId) {
   return response.data
 }
 
+export async function reactivateContractor(token, contractorId) {
+  const response = await apiClient.post(
+    `/contractors/${contractorId}/reactivate`,
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  )
+
+  return response.data
+}
+
 export async function addContractorMember(
   token,
   contractorId,
