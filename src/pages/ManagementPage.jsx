@@ -18,8 +18,10 @@ import {
   removeEmployeeClearance,
 } from '../lib/api/employees'
 import {
+  addContractorMember,
   createContractor,
   getContractor,
+  getContractorCandidates,
   getContractorMembers,
   getContractors,
 } from '../lib/api/contractors'
@@ -41,6 +43,18 @@ function ManagementPage() {
   const [isLoadingContractorDetails, setIsLoadingContractorDetails] =
     useState(false)
   const [contractorDetailError, setContractorDetailError] = useState('')
+  const [isAddContractorMemberModalOpen, setIsAddContractorMemberModalOpen] =
+    useState(false)
+  const [contractorCandidates, setContractorCandidates] = useState([])
+  const [isLoadingContractorCandidates, setIsLoadingContractorCandidates] =
+    useState(false)
+  const [contractorCandidateError, setContractorCandidateError] = useState('')
+  const [selectedContractorCandidate, setSelectedContractorCandidate] =
+    useState('')
+  const [isAddingContractorMember, setIsAddingContractorMember] =
+    useState(false)
+  const [addContractorMemberError, setAddContractorMemberError] =
+    useState('')
   const [isCreateContractorModalOpen, setIsCreateContractorModalOpen] =
     useState(false)
   const [isCreatingContractor, setIsCreatingContractor] = useState(false)
@@ -223,6 +237,107 @@ function ManagementPage() {
       )
     } finally {
       setIsLoadingContractorDetails(false)
+    }
+  }
+
+  async function loadContractorCandidates() {
+    if (!token) {
+      return
+    }
+
+    setIsLoadingContractorCandidates(true)
+    setContractorCandidateError('')
+
+    try {
+      const data = await getContractorCandidates(token)
+      setContractorCandidates(data)
+    } catch (requestError) {
+      setContractorCandidateError(
+        requestError.response?.data?.detail ||
+          'Unable to load contractor member candidates.',
+      )
+    } finally {
+      setIsLoadingContractorCandidates(false)
+    }
+  }
+
+  function resetAddContractorMemberForm() {
+    setContractorCandidates([])
+    setContractorCandidateError('')
+    setSelectedContractorCandidate('')
+    setAddContractorMemberError('')
+  }
+
+  function closeAddContractorMemberModal() {
+    if (isAddingContractorMember) {
+      return
+    }
+
+    setIsAddContractorMemberModalOpen(false)
+    resetAddContractorMemberForm()
+  }
+
+  async function openAddContractorMemberModal() {
+    if (
+      !token ||
+      !selectedContractor ||
+      selectedContractor.status !== 'active' ||
+      isAddingContractorMember
+    ) {
+      return
+    }
+
+    resetAddContractorMemberForm()
+    setIsContractorDetailModalOpen(false)
+    setIsAddContractorMemberModalOpen(true)
+    await loadContractorCandidates()
+  }
+
+  async function handleAddContractorMember(event) {
+    event.preventDefault()
+
+    if (
+      !token ||
+      !selectedContractor ||
+      selectedContractor.status !== 'active' ||
+      isAddingContractorMember
+    ) {
+      return
+    }
+
+    if (!selectedContractorCandidate) {
+      setAddContractorMemberError('Select a contractor user.')
+      return
+    }
+
+    setIsAddingContractorMember(true)
+    setAddContractorMemberError('')
+
+    try {
+      await addContractorMember(
+        token,
+        selectedContractor.id,
+        selectedContractorCandidate,
+      )
+
+      const [contractor, members] = await Promise.all([
+        getContractor(token, selectedContractor.id),
+        getContractorMembers(token, selectedContractor.id),
+      ])
+
+      setSelectedContractor(contractor)
+      setContractorMembers(members)
+      setIsAddContractorMemberModalOpen(false)
+      resetAddContractorMemberForm()
+      setIsContractorDetailModalOpen(true)
+      showToast('Contractor member added successfully.')
+    } catch (requestError) {
+      setAddContractorMemberError(
+        requestError.response?.data?.detail ||
+          'Unable to add the contractor member.',
+      )
+    } finally {
+      setIsAddingContractorMember(false)
     }
   }
 
@@ -1360,6 +1475,128 @@ function ManagementPage() {
       </Modal>
 
       <Modal
+        isOpen={isAddContractorMemberModalOpen}
+        onClose={closeAddContractorMemberModal}
+        title="Add Contractor Member"
+        size="md"
+      >
+        <form onSubmit={handleAddContractorMember} className="space-y-6">
+          <div>
+            <p className="text-sm text-slate-300">
+              Associate an active contractor user with{' '}
+              <span className="font-medium text-slate-100">
+                {selectedContractor?.name}
+              </span>
+              .
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="contractor-member-user"
+              className="text-sm font-medium text-slate-200"
+            >
+              Contractor user
+            </label>
+
+            <select
+              id="contractor-member-user"
+              value={selectedContractorCandidate}
+              onChange={(event) =>
+                setSelectedContractorCandidate(event.target.value)
+              }
+              disabled={
+                isLoadingContractorCandidates ||
+                isAddingContractorMember
+              }
+              className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+              required
+            >
+              <option value="">
+                {isLoadingContractorCandidates
+                  ? 'Loading eligible users...'
+                  : 'Select a contractor user'}
+              </option>
+
+              {contractorCandidates.map((candidate) => {
+                const membership = contractorMembers.find(
+                  (member) => member.user_id === candidate.id,
+                )
+
+                const isActiveMember = membership?.is_active === true
+
+                return (
+                  <option
+                    key={candidate.id}
+                    value={candidate.id}
+                    disabled={isActiveMember}
+                  >
+                    {candidate.email}
+                    {isActiveMember
+                      ? ' — already an active member'
+                      : membership
+                        ? ' — reactivate membership'
+                        : ''}
+                  </option>
+                )
+              })}
+            </select>
+
+            {!isLoadingContractorCandidates &&
+              !contractorCandidateError &&
+              contractorCandidates.length === 0 && (
+                <p className="mt-2 text-xs text-slate-500">
+                  No active contractor users are currently available.
+                </p>
+              )}
+          </div>
+
+          {contractorCandidateError && (
+            <ErrorState
+              title="Unable to load contractor users"
+              message={contractorCandidateError}
+            />
+          )}
+
+          {addContractorMemberError && (
+            <ErrorState
+              title="Unable to add contractor member"
+              message={addContractorMemberError}
+            />
+          )}
+
+          <div className="flex justify-end gap-2 border-t border-slate-800 pt-5">
+            <button
+              type="button"
+              onClick={closeAddContractorMemberModal}
+              disabled={isAddingContractorMember}
+              className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={
+                isAddingContractorMember ||
+                isLoadingContractorCandidates ||
+                contractorCandidates.length === 0 ||
+                !selectedContractorCandidate ||
+                contractorMembers.some(
+                  (member) =>
+                    member.user_id === selectedContractorCandidate &&
+                    member.is_active,
+                )
+              }
+              className="rounded-xl border border-sky-700 bg-sky-950/60 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isAddingContractorMember ? 'Adding...' : 'Add Member'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
         isOpen={isContractorDetailModalOpen}
         onClose={closeContractorDetailModal}
         title="Contractor Details"
@@ -1457,13 +1694,25 @@ function ManagementPage() {
               </div>
 
               <div className="border-t border-slate-800 pt-6">
-                <div>
-                  <h4 className="text-lg font-semibold text-slate-100">
-                    Members
-                  </h4>
-                  <p className="mt-1 text-sm text-slate-400">
-                    Users associated with this contractor.
-                  </p>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h4 className="text-lg font-semibold text-slate-100">
+                      Members
+                    </h4>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Users associated with this contractor.
+                    </p>
+                  </div>
+
+                  {selectedContractor.status === 'active' && (
+                    <button
+                      type="button"
+                      onClick={openAddContractorMemberModal}
+                      className="rounded-xl border border-sky-700 bg-sky-950/60 px-3 py-2 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70"
+                    >
+                      Add Member
+                    </button>
+                  )}
                 </div>
 
                 <div className="mt-4 space-y-3">
