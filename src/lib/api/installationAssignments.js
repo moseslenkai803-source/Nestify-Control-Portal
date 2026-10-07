@@ -11,6 +11,51 @@ export async function getInstallationAssignments(token, status = null) {
   return response.data
 }
 
+export async function getInstallationAssignmentPropertyPlates(
+  token,
+  propertyId,
+) {
+  const response = await apiClient.get(
+    `/installation-assignments/properties/${propertyId}/plates`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  )
+
+  return response.data
+}
+
+export async function getInstallationAssignmentContractors(token) {
+  const response = await apiClient.get(
+    '/installation-assignments/contractors',
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  )
+
+  return response.data
+}
+
+export async function getInstallationAssignmentContractorMembers(
+  token,
+  contractorId,
+) {
+  const response = await apiClient.get(
+    `/installation-assignments/contractors/${contractorId}/members`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  )
+
+  return response.data
+}
+
 export async function createInstallationAssignment(token, payload) {
   const response = await apiClient.post(
     '/installation-assignments',

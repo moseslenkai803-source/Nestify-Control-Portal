@@ -23,6 +23,7 @@ import {
   startManufacturingOrder,
 } from '../lib/api/manufacturingOrders'
 import { getPlateInventory } from '../lib/api/plateInventory'
+import { getAccessibleProperties } from '../lib/api/properties'
 import {
   getPendingPropertyInstallations,
   verifyPropertyInstallation,
@@ -36,6 +37,10 @@ import {
 } from '../lib/api/dispatches'
 import {
   cancelInstallationAssignment,
+  createInstallationAssignment,
+  getInstallationAssignmentContractorMembers,
+  getInstallationAssignmentContractors,
+  getInstallationAssignmentPropertyPlates,
   getInstallationAssignments,
 } from '../lib/api/installationAssignments'
 
@@ -71,6 +76,29 @@ function PlateOperationsPage() {
   const [installationLoading, setInstallationLoading] = useState(false)
   const [installationError, setInstallationError] = useState('')
   const [installationActionLoading, setInstallationActionLoading] = useState('')
+  const [isCreateInstallationModalOpen, setIsCreateInstallationModalOpen] =
+    useState(false)
+  const [installationProperties, setInstallationProperties] = useState([])
+  const [installationPlates, setInstallationPlates] = useState([])
+  const [installationContractors, setInstallationContractors] = useState([])
+  const [installationMembers, setInstallationMembers] = useState([])
+  const [installationFormLoading, setInstallationFormLoading] = useState(false)
+  const [installationPlatesLoading, setInstallationPlatesLoading] =
+    useState(false)
+  const [installationMembersLoading, setInstallationMembersLoading] =
+    useState(false)
+  const [installationFormError, setInstallationFormError] = useState('')
+  const [selectedInstallationProperty, setSelectedInstallationProperty] =
+    useState('')
+  const [selectedInstallationPlate, setSelectedInstallationPlate] =
+    useState('')
+  const [selectedInstallationContractor, setSelectedInstallationContractor] =
+    useState('')
+  const [selectedInstallationMember, setSelectedInstallationMember] =
+    useState('')
+  const [installationDueAt, setInstallationDueAt] = useState('')
+  const [installationFormStep, setInstallationFormStep] = useState('details')
+  const [isCreatingInstallation, setIsCreatingInstallation] = useState(false)
   const [verificationTasks, setVerificationTasks] = useState([])
   const [verificationLoading, setVerificationLoading] = useState(false)
   const [verificationError, setVerificationError] = useState('')
@@ -79,7 +107,6 @@ function PlateOperationsPage() {
   const [requestStatusFilter, setRequestStatusFilter] = useState('all')
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [selectedPlate, setSelectedPlate] = useState(null)
-
 
   useEffect(() => {
     if (!token || activeTab !== 'requests') {
@@ -1102,29 +1129,204 @@ function PlateOperationsPage() {
     )
   }
 
+  async function loadInstallationFormData() {
+    if (!token) {
+      return
+    }
+
+    setInstallationFormLoading(true)
+    setInstallationFormError('')
+
+    try {
+      const [properties, contractors] = await Promise.all([
+        getAccessibleProperties(token),
+        getInstallationAssignmentContractors(token),
+      ])
+
+      setInstallationProperties(properties)
+      setInstallationContractors(contractors)
+    } catch (error) {
+      setInstallationFormError(
+        error.response?.data?.detail ||
+          'Unable to load installation assignment options.',
+      )
+    } finally {
+      setInstallationFormLoading(false)
+    }
+  }
+
+  async function loadInstallationMembers(contractorId) {
+    if (!token || !contractorId) {
+      setInstallationMembers([])
+      return
+    }
+
+    setInstallationMembersLoading(true)
+    setInstallationFormError('')
+
+    try {
+      const members = await getInstallationAssignmentContractorMembers(token, contractorId)
+
+      setInstallationMembers(
+        members.filter((member) => member.is_active),
+      )
+    } catch (error) {
+      setInstallationMembers([])
+      setInstallationFormError(
+        error.response?.data?.detail ||
+          'Unable to load contractor members.',
+      )
+    } finally {
+      setInstallationMembersLoading(false)
+    }
+  }
+
+  function resetInstallationForm() {
+    setInstallationProperties([])
+    setInstallationPlates([])
+    setInstallationContractors([])
+    setInstallationMembers([])
+    setInstallationFormError('')
+    setInstallationFormStep('details')
+    setSelectedInstallationProperty('')
+    setSelectedInstallationPlate('')
+    setSelectedInstallationContractor('')
+    setSelectedInstallationMember('')
+    setInstallationDueAt('')
+  }
+
+  async function openCreateInstallationModal() {
+    if (!token || isCreatingInstallation) {
+      return
+    }
+
+    resetInstallationForm()
+    setIsCreateInstallationModalOpen(true)
+    await loadInstallationFormData()
+  }
+
+  function closeCreateInstallationModal() {
+    if (isCreatingInstallation) {
+      return
+    }
+
+    setIsCreateInstallationModalOpen(false)
+    resetInstallationForm()
+  }
+
+  async function handleInstallationPropertyChange(event) {
+    const propertyId = event.target.value
+
+    setSelectedInstallationProperty(propertyId)
+    setSelectedInstallationPlate('')
+    setInstallationPlates([])
+    setInstallationFormError('')
+
+    if (!token || !propertyId) {
+      return
+    }
+
+    setInstallationPlatesLoading(true)
+
+    try {
+      const plates = await getInstallationAssignmentPropertyPlates(
+        token,
+        propertyId,
+      )
+
+      setInstallationPlates(plates)
+
+      if (plates.length === 1) {
+        setSelectedInstallationPlate(plates[0].id)
+      }
+    } catch (error) {
+      setInstallationPlates([])
+      setInstallationFormError(
+        error.response?.data?.detail ||
+          'Unable to load address plates for this property.',
+      )
+    } finally {
+      setInstallationPlatesLoading(false)
+    }
+  }
+
+  async function handleInstallationContractorChange(event) {
+    const contractorId = event.target.value
+
+    setSelectedInstallationContractor(contractorId)
+    setSelectedInstallationMember('')
+
+    await loadInstallationMembers(contractorId)
+  }
+
+  function handleInstallationDetailsSubmit(event) {
+    event.preventDefault()
+
+    if (isCreatingInstallation) {
+      return
+    }
+
+    if (!selectedInstallationProperty) {
+      setInstallationFormError('Select a property.')
+      return
+    }
+
+    if (!selectedInstallationPlate) {
+      setInstallationFormError('Select a dispatched address plate.')
+      return
+    }
+
+    if (!selectedInstallationContractor) {
+      setInstallationFormError('Select a contractor.')
+      return
+    }
+
+    if (!selectedInstallationMember) {
+      setInstallationFormError('Select an installer.')
+      return
+    }
+
+    setInstallationFormError('')
+    setInstallationFormStep('review')
+  }
+
+  async function handleCreateInstallationAssignment() {
+    if (!token || isCreatingInstallation) {
+      return
+    }
+
+    setIsCreatingInstallation(true)
+    setInstallationFormError('')
+
+    try {
+      await createInstallationAssignment(token, {
+        property_id: selectedInstallationProperty,
+        plate_id: selectedInstallationPlate,
+        contractor_id: selectedInstallationContractor,
+        contractor_member_id: selectedInstallationMember,
+        due_at: installationDueAt
+          ? new Date(installationDueAt).toISOString()
+          : null,
+      })
+
+      const assignments = await getInstallationAssignments(token)
+
+      setInstallationAssignments(assignments)
+      setIsCreateInstallationModalOpen(false)
+      resetInstallationForm()
+
+      showToast('Installation assignment created successfully.')
+    } catch (error) {
+      setInstallationFormError(
+        error.response?.data?.detail ||
+          'Unable to create the installation assignment.',
+      )
+    } finally {
+      setIsCreatingInstallation(false)
+    }
+  }
+
   const renderInstallation = () => {
-    if (installationLoading) {
-      return <LoadingState message="Loading installation assignments..." />
-    }
-
-    if (installationError) {
-      return (
-        <ErrorState
-          title="Unable to load installations"
-          description={installationError}
-        />
-      )
-    }
-
-    if (installationAssignments.length === 0) {
-      return (
-        <EmptyState
-          title="No installation assignments"
-          description="There are no installation assignments available for the control portal."
-        />
-      )
-    }
-
     const handleCancel = async (assignment) => {
       const reason = window.prompt(
         `Enter a cancellation reason for ${assignment.plate_code}:`,
@@ -1164,7 +1366,41 @@ function PlateOperationsPage() {
 
     return (
       <div className="space-y-4">
-        {installationAssignments.map((assignment) => {
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-100">
+              Installation assignments
+            </p>
+            <p className="mt-1 text-sm text-slate-400">
+              Assign dispatched address plates to contractor installers.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={openCreateInstallationModal}
+            disabled={isCreatingInstallation}
+            className="rounded-lg border border-slate-700 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Create assignment
+          </button>
+        </div>
+
+        {installationLoading ? (
+          <LoadingState message="Loading installation assignments..." />
+        ) : installationError ? (
+          <ErrorState
+            title="Unable to load installations"
+            description={installationError}
+          />
+        ) : installationAssignments.length === 0 ? (
+          <EmptyState
+            title="No installation assignments"
+            description="There are no installation assignments available for the control portal."
+          />
+        ) : (
+          <div className="space-y-4">
+            {installationAssignments.map((assignment) => {
           const actionLoading =
             installationActionLoading === assignment.id
           const canCancel = ['assigned', 'in_progress', 'submitted'].includes(
@@ -1253,8 +1489,10 @@ function PlateOperationsPage() {
                   </div>
                 )}
             </div>
-          )
-        })}
+            )
+            })}
+          </div>
+        )}
       </div>
     )
   }
@@ -1441,6 +1679,247 @@ function PlateOperationsPage() {
 
           {renderTabContent()}
       </>
+
+      <Modal
+        isOpen={isCreateInstallationModalOpen}
+        onClose={closeCreateInstallationModal}
+        title="Create installation assignment"
+        size="lg"
+      >
+        <form
+          onSubmit={
+            installationFormStep === 'review'
+              ? (event) => {
+                  event.preventDefault()
+                  handleCreateInstallationAssignment()
+                }
+              : handleInstallationDetailsSubmit
+          }
+          className="space-y-5"
+        >
+          {installationFormError && (
+            <div className="rounded-xl border border-red-800/70 bg-red-950/30 p-3 text-sm text-red-200">
+              {installationFormError}
+            </div>
+          )}
+
+          {installationFormLoading ? (
+            <LoadingState message="Loading assignment options..." />
+          ) : installationFormStep === 'review' ? (
+            <div className="space-y-5">
+              <div>
+                <p className="text-sm font-semibold text-slate-100">
+                  Review installation assignment
+                </p>
+                <p className="mt-1 text-sm text-slate-400">
+                  Confirm the assignment details before creating the instruction.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label
+                  htmlFor="installation-property"
+                  className="text-sm font-medium text-slate-200"
+                >
+                  Property
+                </label>
+
+                <select
+                  id="installation-property"
+                  value={selectedInstallationProperty}
+                  onChange={handleInstallationPropertyChange}
+                  disabled={isCreatingInstallation}
+                  className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                >
+                  <option value="">Select a property</option>
+
+                  {installationProperties.map((property) => (
+                    <option key={property.id} value={property.id}>
+                      {property.property_code} — {property.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="installation-plate"
+                  className="text-sm font-medium text-slate-200"
+                >
+                  Address plate
+                </label>
+
+                {!selectedInstallationProperty ? (
+                  <div className="mt-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-500">
+                    Select a property first
+                  </div>
+                ) : installationPlatesLoading ? (
+                  <div className="mt-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-400">
+                    Loading address plates...
+                  </div>
+                ) : installationPlates.length === 0 ? (
+                  <div className="mt-2 rounded-lg border border-amber-800/60 bg-amber-950/20 px-3 py-2 text-sm text-amber-300">
+                    No dispatched plate available
+                  </div>
+                ) : installationPlates.length === 1 ? (
+                  <div className="mt-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">
+                    {installationPlates[0].plate_code}
+                  </div>
+                ) : (
+                  <select
+                    id="installation-plate"
+                    value={selectedInstallationPlate}
+                    onChange={(event) =>
+                      setSelectedInstallationPlate(event.target.value)
+                    }
+                    disabled={isCreatingInstallation}
+                    className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                  >
+                    <option value="">Select a plate</option>
+
+                    {installationPlates.map((plate) => (
+                      <option key={plate.id} value={plate.id}>
+                        {plate.plate_code}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {selectedInstallationProperty &&
+                  !installationPlatesLoading &&
+                  installationPlates.length === 0 && (
+                    <p className="mt-2 text-xs text-amber-300">
+                      No address plate is ready for installation. This
+                      property needs a dispatched address plate before an
+                      installation assignment can be created.
+                    </p>
+                  )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="installation-contractor"
+                  className="text-sm font-medium text-slate-200"
+                >
+                  Contractor
+                </label>
+
+                <select
+                  id="installation-contractor"
+                  value={selectedInstallationContractor}
+                  onChange={handleInstallationContractorChange}
+                  disabled={isCreatingInstallation}
+                  className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                >
+                  <option value="">Select a contractor</option>
+
+                  {installationContractors.map((contractor) => (
+                    <option key={contractor.id} value={contractor.id}>
+                      {contractor.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="installation-member"
+                  className="text-sm font-medium text-slate-200"
+                >
+                  Installer
+                </label>
+
+                <select
+                  id="installation-member"
+                  value={selectedInstallationMember}
+                  onChange={(event) =>
+                    setSelectedInstallationMember(event.target.value)
+                  }
+                  disabled={
+                    isCreatingInstallation ||
+                    !selectedInstallationContractor ||
+                    installationMembersLoading
+                  }
+                  className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                >
+                  <option value="">
+                    {installationMembersLoading
+                      ? 'Loading installers...'
+                      : !selectedInstallationContractor
+                        ? 'Select a contractor first'
+                        : installationMembers.length === 0
+                          ? 'No active installers available'
+                          : 'Select an installer'}
+                  </option>
+
+                  {installationMembers.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.email}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedInstallationContractor &&
+                  !installationMembersLoading &&
+                  installationMembers.length === 0 && (
+                    <p className="mt-2 text-xs text-amber-300">
+                      This contractor has no active members available for
+                      installation.
+                    </p>
+                  )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="installation-due-at"
+                  className="text-sm font-medium text-slate-200"
+                >
+                  Due date
+                  <span className="ml-1 text-slate-500">(optional)</span>
+                </label>
+
+                <input
+                  id="installation-due-at"
+                  type="datetime-local"
+                  value={installationDueAt}
+                  onChange={(event) => setInstallationDueAt(event.target.value)}
+                  disabled={isCreatingInstallation}
+                  className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-slate-800 pt-4">
+                <button
+                  type="button"
+                  onClick={closeCreateInstallationModal}
+                  disabled={isCreatingInstallation}
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={
+                    isCreatingInstallation ||
+                    !selectedInstallationProperty ||
+                    !selectedInstallationPlate ||
+                    !selectedInstallationContractor ||
+                    !selectedInstallationMember
+                  }
+                  className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isCreatingInstallation
+                    ? 'Creating...'
+                    : 'Create assignment'}
+                </button>
+              </div>
+            </>
+          )}
+        </form>
+      </Modal>
 
       <Modal isOpen={Boolean(selectedRequest)} onClose={() => setSelectedRequest(null)} title="Request details" size="lg">
         {selectedRequest && (
