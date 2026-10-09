@@ -10,26 +10,90 @@ import {
   Wrench,
 } from 'lucide-react'
 import { useAuth } from '../../auth/useAuth'
+import { hasPermission, PERMISSIONS } from '../../auth/permissions'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: Gauge },
-  { to: '/properties', label: 'Properties', icon: Building2 },
-  { to: '/plate-operations', label: 'Plate Operations', icon: Warehouse },
-  { to: '/management', label: 'Management', icon: Users },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/', label: 'Dashboard', icon: Gauge, access: 'portal' },
+  {
+    to: '/properties',
+    label: 'Properties',
+    icon: Building2,
+    access: 'portal',
+  },
+  {
+    to: '/plate-operations',
+    label: 'Plate Operations',
+    icon: Warehouse,
+    anyPermissions: [
+      PERMISSIONS.PLATE_OPERATIONS,
+      PERMISSIONS.INSTALLATION_VERIFICATION,
+    ],
+  },
+  {
+    to: '/management',
+    label: 'Management',
+    icon: Users,
+    adminOnly: true,
+  },
+  {
+    to: '/settings',
+    label: 'Settings',
+    icon: Settings,
+    adminOnly: true,
+  },
 ]
 
 const plateOperationLinks = [
-  { to: '/plate-operations?tab=requests', label: 'Requests' },
-  { to: '/plate-operations?tab=manufacturing', label: 'Manufacturing' },
-  { to: '/plate-operations?tab=inventory', label: 'Inventory' },
-  { to: '/plate-operations?tab=dispatch', label: 'Dispatch' },
-  { to: '/plate-operations?tab=installation', label: 'Installation' },
-  { to: '/plate-operations?tab=verification', label: 'Verification' },
+  {
+    to: '/plate-operations?tab=requests',
+    label: 'Requests',
+    permission: PERMISSIONS.PLATE_OPERATIONS,
+  },
+  {
+    to: '/plate-operations?tab=manufacturing',
+    label: 'Manufacturing',
+    permission: PERMISSIONS.PLATE_OPERATIONS,
+  },
+  {
+    to: '/plate-operations?tab=inventory',
+    label: 'Inventory',
+    permission: PERMISSIONS.PLATE_OPERATIONS,
+  },
+  {
+    to: '/plate-operations?tab=dispatch',
+    label: 'Dispatch',
+    permission: PERMISSIONS.PLATE_OPERATIONS,
+  },
+  {
+    to: '/plate-operations?tab=installation',
+    label: 'Installation',
+    permission: PERMISSIONS.PLATE_OPERATIONS,
+  },
+  {
+    to: '/plate-operations?tab=verification',
+    label: 'Verification',
+    permission: PERMISSIONS.INSTALLATION_VERIFICATION,
+  },
 ]
 
 function ControlPortalLayout({ children }) {
   const { user, logout } = useAuth()
+
+  const isAdmin = hasPermission(user, PERMISSIONS.ADMIN)
+
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.access === 'portal') return true
+    if (item.adminOnly) return isAdmin
+    if (item.permission) return hasPermission(user, item.permission)
+
+    return item.anyPermissions?.some((permission) =>
+      hasPermission(user, permission),
+    )
+  })
+
+  const visiblePlateOperationLinks = plateOperationLinks.filter(({ permission }) =>
+    hasPermission(user, permission),
+  )
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -37,14 +101,16 @@ function ControlPortalLayout({ children }) {
         <aside className="hidden w-72 shrink-0 border-r border-slate-800 bg-slate-950/90 lg:block">
           <div className="flex h-full flex-col p-5">
             <div className="mb-8">
-              <p className="text-lg font-semibold tracking-tight text-slate-50">Nestify</p>
+              <p className="text-lg font-semibold tracking-tight text-slate-50">
+                Nestify
+              </p>
               <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
                 Control Portal
               </p>
             </div>
 
             <nav className="space-y-2">
-              {navItems.map(({ to, label, icon: Icon }) => (
+              {visibleNavItems.map(({ to, label, icon: Icon }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -63,28 +129,30 @@ function ControlPortalLayout({ children }) {
               ))}
             </nav>
 
-            <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                Plate Operations
-              </p>
-              <div className="mt-3 space-y-1.5">
-                {plateOperationLinks.map(({ to, label }) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    className={({ isActive }) =>
-                      `block rounded-lg px-2.5 py-2 text-sm transition ${
-                        isActive
-                          ? 'bg-slate-800 text-slate-50'
-                          : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
-                      }`
-                    }
-                  >
-                    {label}
-                  </NavLink>
-                ))}
+            {visiblePlateOperationLinks.length > 0 && (
+              <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  Plate Operations
+                </p>
+                <div className="mt-3 space-y-1.5">
+                  {visiblePlateOperationLinks.map(({ to, label }) => (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      className={({ isActive }) =>
+                        `block rounded-lg px-2.5 py-2 text-sm transition ${
+                          isActive
+                            ? 'bg-slate-800 text-slate-50'
+                            : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
+                        }`
+                      }
+                    >
+                      {label}
+                    </NavLink>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="mt-auto rounded-2xl border border-emerald-900/60 bg-emerald-950/30 p-3">
               <div className="flex items-center gap-2">
@@ -109,9 +177,11 @@ function ControlPortalLayout({ children }) {
                   <Wrench className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-100">Operations overview</p>
+                  <p className="text-sm font-medium text-slate-100">
+                    Operations overview
+                  </p>
                   <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Live portal status
+                    Control portal
                   </p>
                 </div>
               </div>
@@ -124,11 +194,15 @@ function ControlPortalLayout({ children }) {
 
                 <div className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 text-xs font-semibold text-slate-100">
-                    {user?.name?.charAt(0) || 'N'}
+                    {(user?.name || user?.email)?.charAt(0)?.toUpperCase() || 'N'}
                   </div>
                   <div className="hidden text-left sm:block">
-                    <p className="text-xs font-medium text-slate-100">{user?.name || 'Operations User'}</p>
-                    <p className="text-[10px] text-slate-500">{user?.role || 'Operations'}</p>
+                    <p className="text-xs font-medium text-slate-100">
+                      {user?.name || user?.email || 'Operations User'}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {user?.role || 'Operations'}
+                    </p>
                   </div>
                 </div>
 

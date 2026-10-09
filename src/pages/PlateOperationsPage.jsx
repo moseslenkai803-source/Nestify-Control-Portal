@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import { hasPermission, PERMISSIONS } from '../auth/permissions'
 import EmptyState from '../components/ui/EmptyState'
 import ErrorState from '../components/ui/ErrorState'
 import LoadingState from '../components/ui/LoadingState'
@@ -45,19 +46,25 @@ import {
 } from '../lib/api/installationAssignments'
 
 const tabConfig = [
-  { id: 'requests', label: 'Requests' },
-  { id: 'manufacturing', label: 'Manufacturing' },
-  { id: 'inventory', label: 'Inventory' },
-  { id: 'dispatch', label: 'Dispatch' },
-  { id: 'installation', label: 'Installation' },
-  { id: 'verification', label: 'Verification' },
+  { id: 'requests', label: 'Requests', permission: PERMISSIONS.PLATE_OPERATIONS },
+  { id: 'manufacturing', label: 'Manufacturing', permission: PERMISSIONS.PLATE_OPERATIONS },
+  { id: 'inventory', label: 'Inventory', permission: PERMISSIONS.PLATE_OPERATIONS },
+  { id: 'dispatch', label: 'Dispatch', permission: PERMISSIONS.PLATE_OPERATIONS },
+  { id: 'installation', label: 'Installation', permission: PERMISSIONS.PLATE_OPERATIONS },
+  { id: 'verification', label: 'Verification', permission: PERMISSIONS.INSTALLATION_VERIFICATION },
 ]
 
 function PlateOperationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const activeTab = searchParams.get('tab') || 'requests'
   const { showToast } = useToast()
-  const { token } = useAuth()
+  const { token, user } = useAuth()
+  const visibleTabs = tabConfig.filter(({ permission }) =>
+    hasPermission(user, permission),
+  )
+  const requestedTab = searchParams.get('tab')
+  const activeTab = visibleTabs.some(({ id }) => id === requestedTab)
+    ? requestedTab
+    : visibleTabs[0]?.id || 'requests'
 
   const [requestsLoading, setRequestsLoading] = useState(false)
   const [requests, setRequests] = useState([])
@@ -1661,7 +1668,7 @@ function PlateOperationsPage() {
 
       <>
           <div className="flex flex-wrap gap-2">
-            {tabConfig.map(({ id, label }) => (
+            {visibleTabs.map(({ id, label }) => (
               <button
                 key={id}
                 type="button"

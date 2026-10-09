@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import ProtectedRoute from '../auth/ProtectedRoute'
+import { PERMISSIONS } from '../auth/permissions'
 import ControlPortalLayout from '../components/layout/ControlPortalLayout'
 import DashboardPage from '../pages/DashboardPage'
 import LoginPage from '../pages/LoginPage'
@@ -8,13 +9,20 @@ import PropertiesPage from '../pages/PropertiesPage'
 import PlateOperationsPage from '../pages/PlateOperationsPage'
 import SettingsPage from '../pages/SettingsPage'
 
+const portalPermissions = [
+  PERMISSIONS.PLATE_OPERATIONS,
+  PERMISSIONS.INSTALLATION_VERIFICATION,
+  PERMISSIONS.PROPERTY_VERIFICATION,
+  PERMISSIONS.CONTRACTOR_MANAGEMENT,
+]
+
 export const router = createBrowserRouter([
   {
     path: '/login',
     element: <LoginPage />,
   },
   {
-    element: <ProtectedRoute />,
+    element: <ProtectedRoute requireAnyPermission={portalPermissions} />,
     children: [
       {
         path: '/',
@@ -27,33 +35,46 @@ export const router = createBrowserRouter([
       {
         path: '/properties',
         element: (
-          <ControlPortalLayout>
-            <PropertiesPage />
-          </ControlPortalLayout>
+          <ProtectedRoute requireAnyPermission={portalPermissions}>
+            <ControlPortalLayout>
+              <PropertiesPage />
+            </ControlPortalLayout>
+          </ProtectedRoute>
         ),
       },
       {
         path: '/plate-operations',
         element: (
-          <ControlPortalLayout>
-            <PlateOperationsPage />
-          </ControlPortalLayout>
+          <ProtectedRoute
+            requireAnyPermission={[
+              PERMISSIONS.PLATE_OPERATIONS,
+              PERMISSIONS.INSTALLATION_VERIFICATION,
+            ]}
+          >
+            <ControlPortalLayout>
+              <PlateOperationsPage />
+            </ControlPortalLayout>
+          </ProtectedRoute>
         ),
       },
       {
         path: '/management',
         element: (
-          <ControlPortalLayout>
-            <ManagementPage />
-          </ControlPortalLayout>
+          <ProtectedRoute requireAdmin>
+            <ControlPortalLayout>
+              <ManagementPage />
+            </ControlPortalLayout>
+          </ProtectedRoute>
         ),
       },
       {
         path: '/settings',
         element: (
-          <ControlPortalLayout>
-            <SettingsPage />
-          </ControlPortalLayout>
+          <ProtectedRoute requireAdmin>
+            <ControlPortalLayout>
+              <SettingsPage />
+            </ControlPortalLayout>
+          </ProtectedRoute>
         ),
       },
     ],
