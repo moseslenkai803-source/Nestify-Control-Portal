@@ -3,6 +3,7 @@ import ProtectedRoute from '../auth/ProtectedRoute'
 import { PERMISSIONS } from '../auth/permissions'
 import ControlPortalLayout from '../components/layout/ControlPortalLayout'
 import DashboardPage from '../pages/DashboardPage'
+import AcceptEmployeeInvitationPage from '../pages/AcceptEmployeeInvitationPage'
 import LoginPage from '../pages/LoginPage'
 import ManagementPage from '../pages/ManagementPage'
 import PropertiesPage from '../pages/PropertiesPage'
@@ -20,6 +21,10 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    path: '/accept-employee-invitation',
+    element: <AcceptEmployeeInvitationPage />,
   },
   {
     element: <ProtectedRoute requireAnyPermission={portalPermissions} />,

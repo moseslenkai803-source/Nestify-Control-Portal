@@ -14,3 +14,11 @@ export async function getCurrentUser(token) {
 
   return response.data
 }
+
+export async function acceptEmployeeInvitation(payload) {
+  const response = await apiClient.post(
+    '/auth/employee-invitations/accept',
+    payload,
+  )
+  return response.data
+}

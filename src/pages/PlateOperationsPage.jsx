@@ -339,7 +339,10 @@ function PlateOperationsPage() {
       const matchesSearch =
         request.id.toLowerCase().includes(searchTerm) ||
         request.property_id.toLowerCase().includes(searchTerm) ||
-        request.requested_by.toLowerCase().includes(searchTerm)
+        request.requested_by.toLowerCase().includes(searchTerm) ||
+        (request.property_name ?? '').toLowerCase().includes(searchTerm) ||
+        (request.property_code ?? '').toLowerCase().includes(searchTerm) ||
+        (request.requester_email ?? '').toLowerCase().includes(searchTerm)
 
       return matchesStatus && matchesSearch
     })
@@ -633,8 +636,17 @@ function PlateOperationsPage() {
                       <div className="font-medium text-slate-100">Plate request</div>
                       <div className="mt-1 text-xs text-slate-500">{request.id}</div>
                     </td>
-                    <td className="px-5 py-4 text-sm text-slate-300">{request.property_id}</td>
-                    <td className="px-5 py-4 text-sm text-slate-300">{request.requested_by}</td>
+                    <td className="px-5 py-4">
+                      <div className="text-sm font-medium text-slate-100">
+                        {request.property_name ?? 'Unknown property'}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        {request.property_code ?? 'Property code unavailable'}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-slate-300">
+                      {request.requester_email ?? 'Email unavailable'}
+                    </td>
                     <td className="px-5 py-4 text-sm text-slate-300">
                       {new Date(request.requested_at).toLocaleDateString()}
                     </td>
@@ -1948,10 +1960,13 @@ function PlateOperationsPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                  Property ID
+                  Property
                 </p>
-                <p className="mt-2 break-all text-sm text-slate-100">
-                  {selectedRequest.property_id}
+                <p className="mt-2 text-sm font-medium text-slate-100">
+                  {selectedRequest.property_name ?? 'Unknown property'}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {selectedRequest.property_code ?? 'Property code unavailable'}
                 </p>
               </div>
 
@@ -1960,6 +1975,24 @@ function PlateOperationsPage() {
                   Requested by
                 </p>
                 <p className="mt-2 break-all text-sm text-slate-100">
+                  {selectedRequest.requester_email ?? 'Email unavailable'}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  Property ID
+                </p>
+                <p className="mt-2 break-all text-xs text-slate-400">
+                  {selectedRequest.property_id}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  Requester user ID
+                </p>
+                <p className="mt-2 break-all text-xs text-slate-400">
                   {selectedRequest.requested_by}
                 </p>
               </div>

@@ -7,10 +7,10 @@ import Modal from '../components/ui/Modal'
 import PageHeader from '../components/ui/PageHeader'
 import StatusBadge from '../components/ui/StatusBadge'
 import { useAuth } from '../auth/useAuth'
-import { getAccessibleProperties } from '../lib/api/properties'
+import { getAccessibleProperties, getPropertyPortfolio } from '../lib/api/properties'
 
 function PropertiesPage() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const [properties, setProperties] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -27,7 +27,9 @@ function PropertiesPage() {
     setError('')
 
     try {
-      const data = await getAccessibleProperties(token)
+      const fetchProperties =
+        user?.role === 'admin' ? getPropertyPortfolio : getAccessibleProperties
+      const data = await fetchProperties(token)
       setProperties(data)
     } catch (requestError) {
       setError(
@@ -51,7 +53,9 @@ function PropertiesPage() {
       setError('')
 
       try {
-        const data = await getAccessibleProperties(token)
+        const fetchProperties =
+          user?.role === 'admin' ? getPropertyPortfolio : getAccessibleProperties
+        const data = await fetchProperties(token)
 
         if (!cancelled) {
           setProperties(data)
@@ -75,7 +79,7 @@ function PropertiesPage() {
     return () => {
       cancelled = true
     }
-  }, [token])
+  }, [token, user?.role])
 
   const statusOptions = useMemo(
     () => ['All', ...new Set(properties.map((property) => property.status))],
@@ -104,12 +108,18 @@ function PropertiesPage() {
       <PageHeader
         eyebrow="Property operations"
         title="Properties"
-        description="Review properties you are authorized to access."
+        description={
+          user?.role === 'admin'
+            ? 'Review the property portfolio across the platform.'
+            : 'Review properties you are authorized to access.'
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
-          <p className="text-sm text-slate-400">Accessible properties</p>
+          <p className="text-sm text-slate-400">
+            {user?.role === 'admin' ? 'Total properties' : 'Accessible properties'}
+          </p>
           <p className="mt-3 text-3xl font-semibold text-slate-50">
             {properties.length}
           </p>

@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { getCurrentUser, login } from '../lib/api/auth'
 
 function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { saveSession } = useAuth()
   const [submitError, setSubmitError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -69,6 +70,16 @@ function LoginPage() {
           onSubmit={handleSubmit(onSubmit)}
           className="rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-xl"
         >
+          {location.state?.invitationAccepted && (
+            <div
+              role="status"
+              className="mb-5 rounded-lg border border-emerald-800 bg-emerald-950/40 px-3 py-2.5 text-sm text-emerald-200"
+            >
+              {location.state.message ||
+                'Your invitation was accepted. You can now sign in.'}
+            </div>
+          )}
+
           {submitError && (
             <div
               role="alert"

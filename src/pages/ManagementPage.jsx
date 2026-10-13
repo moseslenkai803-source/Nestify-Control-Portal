@@ -10,9 +10,8 @@ import { useAuth } from '../auth/useAuth'
 import { useToast } from '../components/ui/useToast'
 import {
   addEmployeeClearance,
-  createEmployee,
+  createEmployeeInvitation,
   getEmployee,
-  getEmployeeCandidates,
   getEmployeeClearances,
   getEmployees,
   removeEmployeeClearance,
@@ -84,18 +83,17 @@ function ManagementPage() {
   const [search, setSearch] = useState('')
   const [view, setView] = useState('active')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [candidates, setCandidates] = useState([])
-  const [isLoadingCandidates, setIsLoadingCandidates] = useState(false)
-  const [candidateError, setCandidateError] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [createForm, setCreateForm] = useState({
-    userId: '',
+    email: '',
     employeeNumber: '',
     department: '',
     position: '',
     clearances: [],
   })
   const [createError, setCreateError] = useState('')
+  const [createdInvitation, setCreatedInvitation] = useState(null)
+  const [copyInvitationError, setCopyInvitationError] = useState('')
   const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [employeeClearances, setEmployeeClearances] = useState([])
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
@@ -485,14 +483,15 @@ function ManagementPage() {
 
   function resetCreateForm() {
     setCreateForm({
-      userId: '',
+      email: '',
       employeeNumber: '',
       department: '',
       position: '',
       clearances: [],
     })
     setCreateError('')
-    setCandidateError('')
+    setCreatedInvitation(null)
+    setCopyInvitationError('')
   }
 
   function closeCreateModal() {
@@ -504,26 +503,24 @@ function ManagementPage() {
     resetCreateForm()
   }
 
-  async function openCreateModal() {
-    if (!token) {
+  function openCreateModal() {
+    resetCreateForm()
+    setIsCreateModalOpen(true)
+  }
+
+  async function handleCopyInvitationLink() {
+    if (!createdInvitation?.invitation_url) {
       return
     }
 
-    resetCreateForm()
-    setIsCreateModalOpen(true)
-    setIsLoadingCandidates(true)
-
     try {
-      const data = await getEmployeeCandidates(token)
-      setCandidates(data)
-    } catch (requestError) {
-      setCandidates([])
-      setCandidateError(
-        requestError.response?.data?.detail ||
-          'Unable to load eligible employee users.',
+      await navigator.clipboard.writeText(createdInvitation.invitation_url)
+      setCopyInvitationError('')
+      showToast('Invitation link copied.')
+    } catch {
+      setCopyInvitationError(
+        'Copying was blocked by the browser. Select and copy the invitation link above.',
       )
-    } finally {
-      setIsLoadingCandidates(false)
     }
   }
 
@@ -556,24 +553,24 @@ function ManagementPage() {
 
     setIsCreating(true)
     setCreateError('')
+    setCreatedInvitation(null)
+    setCopyInvitationError('')
 
     try {
-      await createEmployee(token, {
-        user_id: createForm.userId,
-        employee_number: createForm.employeeNumber,
-        department: createForm.department,
-        position: createForm.position,
+      const invitation = await createEmployeeInvitation(token, {
+        email: createForm.email.trim(),
+        employee_number: createForm.employeeNumber.trim(),
+        department: createForm.department.trim(),
+        position: createForm.position.trim(),
         clearances: createForm.clearances,
       })
 
-      setIsCreateModalOpen(false)
-      resetCreateForm()
-      await loadEmployees()
-      showToast('Employee created successfully.')
+      setCreatedInvitation(invitation)
+      showToast('Employee invitation created.')
     } catch (requestError) {
       setCreateError(
         requestError.response?.data?.detail ||
-          'Unable to create the employee.',
+          'Unable to create the employee invitation.',
       )
     } finally {
       setIsCreating(false)
@@ -1293,55 +1290,34 @@ function ManagementPage() {
         <form onSubmit={handleCreateEmployee} className="space-y-6">
           <div>
             <p className="text-sm text-slate-300">
-              Create an employee record for an eligible employee user.
+              Invite a new employee to create their account and join Nestify.
+              Their employee record will be created when they accept the invitation.
             </p>
           </div>
 
-          {candidateError && (
-            <ErrorState
-              title="Unable to load candidates"
-              message={candidateError}
-            />
-          )}
-
           <div>
             <label
-              htmlFor="employee-user"
+              htmlFor="employee-email"
               className="text-sm font-medium text-slate-200"
             >
-              Employee user
+              Employee email
             </label>
-
-            <select
-              id="employee-user"
-              value={createForm.userId}
+            <input
+              id="employee-email"
+              type="email"
+              autoComplete="email"
+              value={createForm.email}
               onChange={(event) =>
-                handleCreateFieldChange('userId', event.target.value)
+                handleCreateFieldChange('email', event.target.value)
               }
-              disabled={isLoadingCandidates || isCreating}
-              className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isCreating || Boolean(createdInvitation)}
+              className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+              placeholder="employee@example.com"
               required
-            >
-              <option value="">
-                {isLoadingCandidates
-                  ? 'Loading eligible users...'
-                  : 'Select an employee user'}
-              </option>
-
-              {candidates.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.email}
-                </option>
-              ))}
-            </select>
-
-            {!isLoadingCandidates &&
-              !candidateError &&
-              candidates.length === 0 && (
-                <p className="mt-2 text-xs text-slate-500">
-                  No eligible employee users are currently available.
-                </p>
-              )}
+            />
+            <p className="mt-2 text-xs text-slate-500">
+              The employee will set their own password using the invitation link.
+            </p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -1445,9 +1421,54 @@ function ManagementPage() {
 
           {createError && (
             <ErrorState
-              title="Unable to create employee"
+              title="Unable to create invitation"
               message={createError}
             />
+          )}
+
+          {createdInvitation && (
+            <div className="space-y-3 rounded-xl border border-emerald-800 bg-emerald-950/30 p-4">
+              <div>
+                <p className="text-sm font-semibold text-emerald-200">
+                  Invitation created
+                </p>
+                <p className="mt-1 text-sm text-slate-300">
+                  Share this link with {createdInvitation.email}. It can be used
+                  until{' '}
+                  {new Date(createdInvitation.expires_at).toLocaleString()}.
+                </p>
+              </div>
+
+              {createdInvitation.invitation_url ? (
+                <>
+                  <input
+                    aria-label="Employee invitation link"
+                    type="text"
+                    readOnly
+                    value={createdInvitation.invitation_url}
+                    onFocus={(event) => event.target.select()}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyInvitationLink}
+                    className="rounded-xl border border-emerald-700 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-900/50"
+                  >
+                    Copy invitation link
+                  </button>
+                  {copyInvitationError && (
+                    <p className="text-xs text-amber-200">
+                      {copyInvitationError}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-amber-200">
+                  The invitation was created, but the server did not return a
+                  link. Check the server configuration before sharing it.
+                </p>
+              )}
+            </div>
           )}
 
           <div className="flex justify-end gap-2 border-t border-slate-800 pt-5">
@@ -1457,20 +1478,18 @@ function ManagementPage() {
               disabled={isCreating}
               className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Cancel
+              {createdInvitation ? 'Close' : 'Cancel'}
             </button>
 
-            <button
-              type="submit"
-              disabled={
-                isCreating ||
-                isLoadingCandidates ||
-                candidates.length === 0
-              }
-              className="rounded-xl border border-sky-700 bg-sky-950/60 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isCreating ? 'Creating...' : 'Create Employee'}
-            </button>
+            {!createdInvitation && (
+              <button
+                type="submit"
+                disabled={isCreating}
+                className="rounded-xl border border-sky-700 bg-sky-950/60 px-4 py-2.5 text-sm font-medium text-sky-100 transition hover:bg-sky-900/70 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isCreating ? 'Creating invitation...' : 'Create Invitation'}
+              </button>
+            )}
           </div>
         </form>
       </Modal>

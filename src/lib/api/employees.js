@@ -95,3 +95,13 @@ export async function removeEmployeeClearance(
 
   return response.data
 }
+
+export async function createEmployeeInvitation(token, payload) {
+  const response = await apiClient.post('/employees/invitations', payload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  return response.data
+}
