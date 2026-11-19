@@ -104,8 +104,9 @@ function PropertiesPage() {
   }, [properties, search, statusFilter])
 
   return (
-    <section className="space-y-8">
+    <section className="space-y-8 rounded-3xl bg-[#0B1220] p-5 md:p-8">
       <PageHeader
+        theme="dark"
         eyebrow="Property operations"
         title="Properties"
         description={
@@ -116,61 +117,61 @@ function PropertiesPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
-          <p className="text-sm text-slate-400">
+        <div className="rounded-2xl border border-[#334155] bg-[#17243B] p-5">
+          <p className="text-sm text-[#CBD5E1]">
             {user?.role === 'admin' ? 'Total properties' : 'Accessible properties'}
           </p>
-          <p className="mt-3 text-3xl font-semibold text-slate-50">
+          <p className="mt-3 text-3xl font-semibold text-white">
             {properties.length}
           </p>
-          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-[#94A3B8]">
             From backend
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
-          <p className="text-sm text-slate-400">Active</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-50">
+        <div className="rounded-2xl border border-[#334155] bg-[#17243B] p-5">
+          <p className="text-sm text-[#CBD5E1]">Active</p>
+          <p className="mt-3 text-3xl font-semibold text-white">
             {properties.filter((property) => property.status === 'active').length}
           </p>
-          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-[#94A3B8]">
             Current status
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
-          <p className="text-sm text-slate-400">Filtered results</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-50">
+        <div className="rounded-2xl border border-[#334155] bg-[#17243B] p-5">
+          <p className="text-sm text-[#CBD5E1]">Filtered results</p>
+          <p className="mt-3 text-3xl font-semibold text-white">
             {filteredProperties.length}
           </p>
-          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-[#94A3B8]">
             Current view
           </p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+      <div className="rounded-2xl border border-[#334155] bg-[#17243B] p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#C7F000]" />
             <input
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search property name, code, or type"
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500"
+              className="w-full rounded-xl border border-[#334155] bg-[#0B1220] py-2.5 pl-9 pr-3 text-sm text-white outline-none placeholder:text-[#94A3B8] focus:border-[#C7F000]"
             />
           </div>
 
           <div className="flex items-center gap-3">
-            <label htmlFor="property-status" className="text-sm text-slate-400">
+            <label htmlFor="property-status" className="text-sm text-[#CBD5E1]">
               Status
             </label>
             <select
               id="property-status"
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-slate-500"
+              className="rounded-xl border border-[#334155] bg-[#0B1220] px-3 py-2.5 text-sm text-white outline-none focus:border-[#C7F000]"
             >
               {statusOptions.map((status) => (
                 <option key={status} value={status}>
@@ -215,15 +216,15 @@ function PropertiesPage() {
           {filteredProperties.map((property) => (
             <div
               key={property.id}
-              className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 transition hover:border-slate-700 hover:bg-slate-900"
+              className="rounded-2xl border border-[#334155] bg-[#17243B] p-5 transition hover:border-[#C7F000] hover:bg-[#1E2D46]"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2 text-slate-200">
-                    <Building2 className="h-4 w-4 text-slate-400" />
-                    <p className="text-lg font-semibold">{property.name}</p>
+                  <div className="flex items-center gap-2 text-white">
+                    <Building2 className="h-4 w-4 text-[#C7F000]" />
+                    <p className="text-lg font-semibold text-[#C7F000]">{property.name}</p>
                   </div>
-                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-[#94A3B8]">
                     {property.property_code}
                   </p>
                 </div>
@@ -233,29 +234,29 @@ function PropertiesPage() {
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#94A3B8]">
                     Type
                   </p>
-                  <p className="mt-2 text-sm font-medium text-slate-100">
+                  <p className="mt-2 text-sm font-medium text-white">
                     {property.property_type}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#94A3B8]">
                     Property ID
                   </p>
-                  <p className="mt-2 truncate text-sm font-medium text-slate-100">
+                  <p className="mt-2 truncate text-sm font-medium text-white">
                     {property.id}
                   </p>
                 </div>
               </div>
 
               <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#94A3B8]">
                   Landlord
                 </p>
-                <p className="mt-2 truncate text-sm text-slate-300">
+                <p className="mt-2 truncate text-sm text-[#CBD5E1]">
                   {property.landlord_id}
                 </p>
               </div>
@@ -264,7 +265,7 @@ function PropertiesPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedProperty(property)}
-                  className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-800"
+                  className="rounded-lg border border-[#C7F000] bg-[#C7F000] px-3 py-2 text-sm font-semibold text-[#101B33] transition hover:bg-[#D8FF24]"
                 >
                   View details
                 </button>
@@ -282,12 +283,12 @@ function PropertiesPage() {
       >
         {selectedProperty && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#334155] bg-[#0B1220] p-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#94A3B8]">
                   Property code
                 </p>
-                <p className="mt-2 text-xl font-semibold text-slate-50">
+                <p className="mt-2 text-xl font-semibold text-[#C7F000]">
                   {selectedProperty.property_code}
                 </p>
               </div>
@@ -295,35 +296,35 @@ function PropertiesPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+              <div className="rounded-xl border border-[#334155] bg-[#17243B] p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#94A3B8]">
                   Property ID
                 </p>
-                <p className="mt-2 break-all text-sm text-slate-100">
+                <p className="mt-2 break-all text-sm text-white">
                   {selectedProperty.id}
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+              <div className="rounded-xl border border-[#334155] bg-[#17243B] p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#94A3B8]">
                   Type
                 </p>
-                <p className="mt-2 text-sm text-slate-100">
+                <p className="mt-2 text-sm text-white">
                   {selectedProperty.property_type}
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+              <div className="rounded-xl border border-[#334155] bg-[#17243B] p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#94A3B8]">
                   Landlord ID
                 </p>
-                <p className="mt-2 break-all text-sm text-slate-100">
+                <p className="mt-2 break-all text-sm text-white">
                   {selectedProperty.landlord_id}
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+              <div className="rounded-xl border border-[#334155] bg-[#17243B] p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-[#94A3B8]">
                   Status
                 </p>
                 <div className="mt-2">

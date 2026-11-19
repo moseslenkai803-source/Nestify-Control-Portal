@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { getCurrentUser, login } from '../lib/api/auth'
 
@@ -80,6 +80,16 @@ function LoginPage() {
             </div>
           )}
 
+          {location.state?.passwordReset && (
+            <div
+              role="status"
+              className="mb-5 rounded-lg border border-emerald-800 bg-emerald-950/40 px-3 py-2.5 text-sm text-emerald-200"
+            >
+              {location.state.message ||
+                'Your password has been changed successfully. Please sign in.'}
+            </div>
+          )}
+
           {submitError && (
             <div
               role="alert"
@@ -141,6 +151,15 @@ function LoginPage() {
                 {errors.password.message}
               </p>
             )}
+          </div>
+
+          <div className="mt-3 text-right">
+            <Link
+              to="/forgot-password"
+              className="text-sm font-medium text-slate-300 transition hover:text-white"
+            >
+              Forgot password?
+            </Link>
           </div>
 
           <button

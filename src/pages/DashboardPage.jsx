@@ -111,17 +111,17 @@ function MetricCard({ label, value, detail, icon: Icon, loading, error }) {
 
 function QueueRow({ label, value, loading, error, accent = 'sky' }) {
   const accentClass = {
-    sky: 'bg-sky-950 text-sky-300',
-    amber: 'bg-amber-950 text-amber-300',
-    emerald: 'bg-emerald-950 text-emerald-300',
+    sky: 'bg-sky-100 text-sky-700',
+    amber: 'bg-amber-100 text-amber-700',
+    emerald: 'bg-emerald-100 text-emerald-700',
   }[accent]
 
   return (
-    <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-      <p className="text-sm text-slate-300">{label}</p>
+    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <p className="text-sm text-slate-700">{label}</p>
       <span
         className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm font-semibold ${
-          error ? 'bg-slate-800 text-slate-400' : accentClass
+          error ? 'bg-slate-100 text-slate-600' : accentClass
         }`}
       >
         {loading ? '—' : error ? '—' : value}
@@ -302,19 +302,19 @@ function DashboardPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-          <p className="text-lg font-semibold text-slate-100">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <p className="text-lg font-semibold text-[#172033]">
             System health &amp; analytics
           </p>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
+          <p className="mt-2 text-sm leading-6 text-[#667085]">
             Health trends will appear when a persisted monitoring and analytics
             data source is available. This dashboard does not currently report
             system-health measurements.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-          <p className="text-lg font-semibold text-slate-100">Pending work</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <p className="text-lg font-semibold text-[#172033]">Pending work</p>
           <div className="mt-5 space-y-3">
             <QueueRow
               label="Plate requests"
@@ -341,36 +341,36 @@ function DashboardPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-          <p className="text-lg font-semibold text-slate-100">Quick actions</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <p className="text-lg font-semibold text-[#172033]">Quick actions</p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {visibleQuickActions.map(({ label, description, icon: Icon, path }) => (
               <button
                 key={label}
                 type="button"
                 onClick={() => navigate(path)}
-                className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-3 text-left text-sm font-medium text-slate-200 transition hover:bg-slate-800"
+                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-100"
               >
                 <span>
                   <span className="block">{label}</span>
-                  <span className="mt-1 block text-xs font-normal text-slate-500">
+                  <span className="mt-1 block text-xs font-normal text-[#667085]">
                     {description}
                   </span>
                 </span>
-                <Icon className="h-4 w-4 shrink-0 text-slate-400" />
+                <Icon className="h-4 w-4 shrink-0 text-slate-500" />
               </button>
             ))}
             {visibleQuickActions.length === 0 && (
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-[#667085]">
                 No operational quick actions are available for your account.
               </p>
             )}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-          <p className="text-lg font-semibold text-slate-100">Recent activity</p>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <p className="text-lg font-semibold text-[#172033]">Recent activity</p>
+          <p className="mt-2 text-sm leading-6 text-[#667085]">
             A verified activity feed is not available yet. Activity will appear
             here when the backend provides an auditable activity endpoint.
           </p>

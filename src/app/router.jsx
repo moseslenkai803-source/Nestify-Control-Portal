@@ -1,14 +1,50 @@
+/* eslint-disable react-refresh/only-export-components */
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
 import ProtectedRoute from '../auth/ProtectedRoute'
 import { PERMISSIONS } from '../auth/permissions'
 import ControlPortalLayout from '../components/layout/ControlPortalLayout'
-import DashboardPage from '../pages/DashboardPage'
-import AcceptEmployeeInvitationPage from '../pages/AcceptEmployeeInvitationPage'
-import LoginPage from '../pages/LoginPage'
-import ManagementPage from '../pages/ManagementPage'
-import PropertiesPage from '../pages/PropertiesPage'
-import PlateOperationsPage from '../pages/PlateOperationsPage'
-import SettingsPage from '../pages/SettingsPage'
+
+const DashboardPage = lazy(() => import('../pages/DashboardPage'))
+const AcceptEmployeeInvitationPage = lazy(
+  () => import('../pages/AcceptEmployeeInvitationPage'),
+)
+const LoginPage = lazy(() => import('../pages/LoginPage'))
+const ForgotPasswordPage = lazy(
+  () => import('../pages/ForgotPasswordPage'),
+)
+const ResetPasswordPage = lazy(
+  () => import('../pages/ResetPasswordPage'),
+)
+const ManagementPage = lazy(() => import('../pages/ManagementPage'))
+const PropertiesPage = lazy(() => import('../pages/PropertiesPage'))
+const PlateOperationsPage = lazy(
+  () => import('../pages/PlateOperationsPage'),
+)
+const SettingsPage = lazy(() => import('../pages/SettingsPage'))
+
+function PageLoadingFallback() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="rounded-2xl border border-[#E2DED5] bg-white p-6"
+    >
+      <div className="flex items-center gap-3">
+        <span className="h-4 w-4 animate-pulse rounded-full bg-[#C7F000]" />
+        <p className="text-sm text-[#647084]">Loading page...</p>
+      </div>
+    </div>
+  )
+}
+
+function LazyPage({ children }) {
+  return (
+    <Suspense fallback={<PageLoadingFallback />}>
+      {children}
+    </Suspense>
+  )
+}
 
 const portalPermissions = [
   PERMISSIONS.PLATE_OPERATIONS,
@@ -20,11 +56,35 @@ const portalPermissions = [
 export const router = createBrowserRouter([
   {
     path: '/login',
-    element: <LoginPage />,
+    element: (
+      <LazyPage>
+        <LoginPage />
+      </LazyPage>
+    ),
+  },
+  {
+    path: '/forgot-password',
+    element: (
+      <LazyPage>
+        <ForgotPasswordPage />
+      </LazyPage>
+    ),
+  },
+  {
+    path: '/reset-password',
+    element: (
+      <LazyPage>
+        <ResetPasswordPage />
+      </LazyPage>
+    ),
   },
   {
     path: '/accept-employee-invitation',
-    element: <AcceptEmployeeInvitationPage />,
+    element: (
+      <LazyPage>
+        <AcceptEmployeeInvitationPage />
+      </LazyPage>
+    ),
   },
   {
     element: <ProtectedRoute requireAnyPermission={portalPermissions} />,
@@ -33,7 +93,9 @@ export const router = createBrowserRouter([
         path: '/',
         element: (
           <ControlPortalLayout>
-            <DashboardPage />
+            <LazyPage>
+              <DashboardPage />
+            </LazyPage>
           </ControlPortalLayout>
         ),
       },
@@ -42,7 +104,9 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requireAnyPermission={portalPermissions}>
             <ControlPortalLayout>
-              <PropertiesPage />
+              <LazyPage>
+                <PropertiesPage />
+              </LazyPage>
             </ControlPortalLayout>
           </ProtectedRoute>
         ),
@@ -57,7 +121,9 @@ export const router = createBrowserRouter([
             ]}
           >
             <ControlPortalLayout>
-              <PlateOperationsPage />
+              <LazyPage>
+                <PlateOperationsPage />
+              </LazyPage>
             </ControlPortalLayout>
           </ProtectedRoute>
         ),
@@ -67,7 +133,9 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requireAdmin>
             <ControlPortalLayout>
-              <ManagementPage />
+              <LazyPage>
+                <ManagementPage />
+              </LazyPage>
             </ControlPortalLayout>
           </ProtectedRoute>
         ),
@@ -77,7 +145,9 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute requireAdmin>
             <ControlPortalLayout>
-              <SettingsPage />
+              <LazyPage>
+                <SettingsPage />
+              </LazyPage>
             </ControlPortalLayout>
           </ProtectedRoute>
         ),

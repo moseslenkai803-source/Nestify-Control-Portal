@@ -22,3 +22,17 @@ export async function acceptEmployeeInvitation(payload) {
   )
   return response.data
 }
+
+
+export async function requestPasswordReset(payload) {
+  const response = await apiClient.post('/auth/password-reset', payload)
+  return response.data
+}
+
+export async function confirmPasswordReset(payload) {
+  const response = await apiClient.post(
+    '/auth/password-reset/confirm',
+    payload,
+  )
+  return response.data
+}

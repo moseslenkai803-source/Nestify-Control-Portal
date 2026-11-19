@@ -581,7 +581,7 @@ function PlateOperationsPage() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search requests, property, or requester"
-            className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-slate-500"
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-[#C7F000] focus:outline-none focus:ring-2 focus:ring-[#C7F000]/20"
           />
         </div>
 
@@ -593,7 +593,7 @@ function PlateOperationsPage() {
               onClick={() => setRequestStatusFilter(value)}
               className={`rounded-lg border px-3 py-2 text-sm font-medium ${
                 requestStatusFilter === value
-                  ? 'border-slate-600 bg-slate-800 text-slate-100'
+                  ? 'border-[#C7F000] bg-[#C7F000] text-[#101B33]'
                   : 'border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
               }`}
             >
@@ -848,7 +848,7 @@ function PlateOperationsPage() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search by plate, property, or status"
-            className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-slate-500"
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-[#C7F000] focus:outline-none focus:ring-2 focus:ring-[#C7F000]/20"
           />
         </div>
       </div>
@@ -1687,7 +1687,7 @@ function PlateOperationsPage() {
                 onClick={() => setSearchParams({ tab: id })}
                 className={`rounded-lg border px-3 py-2 text-sm font-medium ${
                   activeTab === id
-                    ? 'border-slate-600 bg-slate-800 text-slate-100'
+                    ? 'border-[#C7F000] bg-[#C7F000] text-[#101B33]'
                     : 'border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                 }`}
               >
@@ -1928,7 +1928,7 @@ function PlateOperationsPage() {
                     !selectedInstallationContractor ||
                     !selectedInstallationMember
                   }
-                  className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg bg-[#C7F000] px-4 py-2 text-sm font-semibold text-[#101B33] transition hover:bg-[#D8FF24] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isCreatingInstallation
                     ? 'Creating...'
